@@ -12,10 +12,7 @@ from flask import Flask, render_template, request
 
 from utils import ifconfig, parse_input
 
-from default_configs import validate_config, tomlize
-from default_configs import node as default_node_config
-from default_configs import v2ray as default_v2ray_config
-from default_configs import wireguard as default_wireguard_config
+from ConfigHandler import ConfigHandler
 
 app = Flask(__name__)
 
@@ -51,30 +48,30 @@ import code
 
 @app.route('/create/', methods=('GET', 'POST'))
 def create():
-    node_config = copy.deepcopy(default_node_config)
+    node_config = copy.deepcopy(ConfigHandler.node)
     if request.method == 'POST':
         form = request.form.to_dict()
         for conf in form:
             group, key = conf.split('.')
             node_config[group][key]["value"] = form[conf]
-        validated = validate_config(node_config)
+        validated = ConfigHandler.validate_config(node_config)
         if type(validated) == bool and validated == True:
             node_folder = node_config["extras"]["node_folder"]["value"]
             os.makedirs(node_folder, exist_ok=True)
             with open(os.path.join(node_folder, "config.toml"), "w") as f:
-                f.write(tomlize(node_config))
+                f.write(ConfigHandler.tomlize(node_config))
             node_type = node_config["node"]["type"]["value"]
             if node_type == "wireguard":
-                wireguard_config = copy.deepcopy(default_wireguard_config)
+                wireguard_config = copy.deepcopy(ConfigHandler.wireguard)
                 wireguard_config["listen_port"]["value"] = node_config["extras"]["udp_port"]["value"]
                 wireguard_config["private_key"]["value"] = WgPsk().key
                 with open(os.path.join(node_folder, "wireguard.toml"), "w") as f:
-                    f.write(tomlize(wireguard_config))
+                    f.write(ConfigHandler.tomlize(wireguard_config))
             elif node_type == "v2ray":
-                v2ray_config = copy.deepcopy(default_v2ray_config)
+                v2ray_config = copy.deepcopy(ConfigHandler.v2ray)
                 v2ray_config["vmess"]["listen_port"]["value"] = node_config["extras"]["udp_port"]["value"]
                 with open(os.path.join(node_folder, "v2ray.toml"), "w") as f:
-                    f.write(tomlize(v2ray_config))
+                    f.write(ConfigHandler.tomlize(v2ray_config))
 
             return render_template('create.html', node_config=node_config, alert={"message": "Configuration validated", "success": True})
         else:
