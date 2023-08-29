@@ -1,0 +1,39 @@
+{% extends 'base.html' %}
+
+{% block content %}
+    <h3>{% block title %} Node list {% endblock %}</h3>
+    <table class="table">
+        <thead>
+            <tr>
+            <th scope="col">#</th>
+            <th scope="col">Host</th>
+            <th scope="col">Username</th>
+            <th scope="col">Password</th>
+            <th scope="col">Port</th>
+            <th scope="col">Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for node in nodes %}
+            <tr>
+                <th scope="row">{{ node._id }}</th>
+                <td>{{ node.host }}</td>
+                <td>{{ node.username }}</td>
+                <td>{{ node.password }}</td>
+                <td>{{ node.port }}</td>
+                <td><a class="btn btn-primary btn-sm" href="/node/{{node._id}}" role="button"><i class="bi bi-arrow-up-right-square"></i></a></td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    <br>
+    <form method="post">
+        <div class="row">
+            <div class="col"><input type="text" class="form-control" name="host" placeholder="SSH Host"></div>
+            <div class="col"><input type="text" class="form-control" name="username" placeholder="SSH Username"></div>
+            <div class="col"><input type="password" class="form-control" name="password" placeholder="SSH Password"></div>
+            <div class="col"><input type="number" class="form-control" name="port" placeholder="SSH Port"></div>
+            <div class="col"><button type="submit" class="btn btn-primary"><i class="bi bi-patch-plus"></i> Save</button></div>
+        </div>
+    </form>
+{% endblock %}

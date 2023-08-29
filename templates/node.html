@@ -1,0 +1,72 @@
+{% extends 'base.html' %}
+
+{% block content %}
+    <h3>{% block title %} Node dashboard {% endblock %}</h3>
+    <h4 class="text-primary">#{{ node_info._id }} - {{ node_info.username }}@{{ node_info.host }} -p {{ node_info.port }}</h4>
+    <span>Docker installed: <i class="bi {{ 'bi-check-circle-fill text-success' if node_info.docker_installed == true else 'bi-x-circle-fill text-danger' }}"></i></span>
+    <br>
+    <span>Sudoers permission: <i class="bi {{ 'bi-check-circle-fill text-success' if node_info.sudoers_permission == true else 'bi-x-circle-fill text-danger' }}"></i></span>
+
+    {% for container in node_info.containers %}
+        <table class="table">
+            <thead>
+                <tr>
+                <th scope="col">CONTAINER ID</th>
+                <th scope="col">IMAGE</th>
+                <th scope="col">CREATED</th>
+                <th scope="col">STATE</th>
+                <th scope="col">STATUS</th>
+                <th scope="col">NAMES</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <th scope="row">{{ container.Id[:12] }}</th>
+                    <td>{{ container.Image }}</td>
+                    <td>{{ container.Created }}</td>
+                    <td>{{ container.State }}</td>
+                    <td>{{ container.Status }}</td>
+                    <td>{{ ', '.join(container.Names) }}</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <h5>Node status</h5>
+        <pre id="json-renderer-{{ container['Id'] }}" style="max-height: 500px;"></pre>
+
+        <h5>Node config</h5>
+        <form method="post">
+            {% for header in container['NodeConfig'] %}
+                <div class="row">
+                    <h5 class="text-primary">{{ header }}</h5>
+                    <hr>
+                    {% for key in container['NodeConfig'][header] %}
+                        <div class="form-group col-6">
+                            <label for="{{key}}-id">{{key}}</label>
+                            {% if 'options' in container['NodeConfig'][header][key] %}
+                            <select class="form-control" name="{{header}}.{{key}}" id="{{key}}-id" aria-describedby="{{key}}-description" placeholder="{{key}}" value="{{container['NodeConfig'][header][key]['value']}}">
+                                {% for option in container['NodeConfig'][header][key]['options'] %}
+                                <option value="{{option}}">{{option}}</option>
+                                {% endfor %}
+                            </select>
+                            {% elif container['NodeConfig'][header][key]['value'] is number %}
+                            <input type="number" class="form-control" name="{{header}}.{{key}}" id="{{key}}-id" aria-describedby="{{key}}-description" placeholder="{{key}}" value="{{container['NodeConfig'][header][key]['value']}}">
+                            {% else %}
+                            <input type="text" class="form-control" name="{{header}}.{{key}}" id="{{key}}-id" aria-describedby="{{key}}-description" placeholder="{{key}}" value="{{container['NodeConfig'][header][key]['value']}}">
+                            {% endif %}
+                            <small id="{{key}}-description" class="form-text text-muted">{{container['NodeConfig'][header][key]['description']}}</small>
+                        </div>
+                    {% endfor %}
+                </div>
+                <br>
+            {% endfor %}
+            <button type="submit" class="btn btn-primary my-1">Submit</button>
+        </form>
+
+        <script>
+            var data = JSON.parse('{{ container["NodeStatus"] | tojson}}')
+            $("#json-renderer-{{ container['Id'] }}").jsonViewer(data, {collapsed: false, withQuotes: true, withLinks: true});
+        </script>
+
+    {% endfor %}
+{% endblock %}

@@ -47,14 +47,7 @@ def sudo_exec_command(ssh: paramiko.SSHClient, cmd: str, password: str = None):
 ssh_stdin, ssh_stdout, ssh_stderr = sudo_exec_command(ssh, f"sudo whoami", password=password)
 assert ssh_stdout.readlines()[-1].strip() == "root"
 
-class SSHAdapterPassword(SSHHTTPAdapter):
-    def __init__(self, base_url: str, password: str):
-        self.password = password
-        super().__init__(base_url)
-    def _connect(self):
-        if self.ssh_client:
-            self.ssh_params["password"] = self.password
-            self.ssh_client.connect(**self.ssh_params)
+
 
 
 client = APIClient(f'ssh://{host}:{port}', use_ssh_client=True, version=docker_api_version)

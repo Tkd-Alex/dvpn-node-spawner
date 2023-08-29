@@ -1,3 +1,5 @@
+import copy
+
 class ConfigHandler:
     # https://trinityvalidator.com/docs/node/node-config
     # https://github.com/sentinel-official/dvpn-node/blob/development/types/config.go
@@ -10,6 +12,7 @@ class ConfigHandler:
                 "value": "0.1udvpn",
                 "description": "Gas prices to determine the transaction fee",
             },
+            "id": {"value": "sentinelhub-2", "description": "The network chain ID"},
             "rpc_addresses": {
                 "value": "https://rpc.sentinel.co:443",
                 "description": "Comma separated Tendermint RPC addresses for the chain",
@@ -167,3 +170,13 @@ class ConfigHandler:
                 else:
                     raw += f"{group} = {__handle_type(node_config[group]['value'])}\n"
         return raw
+
+
+    def node_toml2wellknow(node_config: dict) -> dict:
+        default_values = copy.deepcopy(ConfigHandler.node)
+        for group in node_config:
+            if group in default_values:
+                for key in node_config[group]:
+                    if key in default_values[group]:
+                        default_values[group][key]["value"] = node_config[group][key]
+        return default_values
