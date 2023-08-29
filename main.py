@@ -14,7 +14,7 @@ from shutil import which
 from flask import Flask, render_template, request, jsonify
 from flask_sqlalchemy import SQLAlchemy
 
-from utils import ifconfig, parse_input, ssh_connection, sudo_exec_command, ssh_docker, node_status, ssh_read_file, ssh_put_file
+from utils import ifconfig, parse_input, ssh_connection, sudo_exec_command, ssh_docker, node_status, ssh_read_file, ssh_put_file, ssh_get_home
 
 from ConfigHandler import ConfigHandler
 
@@ -38,13 +38,6 @@ class Nodes(db.Model):
 
     def as_dict(self):
        return {c.name: getattr(self, c.name) for c in self.__table__.columns}
-
-
-@app.route("/containers", methods=["GET"])
-def get_containers():
-    containers = client.containers.list(all=True)
-    print(containers)
-    return "Hello world"
 
 
 @app.route("/nodes", methods=("GET", "POST"))
@@ -114,6 +107,7 @@ def get_node(node_id: int):
                 ssh_stdin, ssh_stdout, ssh_stderr = sudo_exec_command(ssh, "sudo bash ${HOME}/docker-install.sh", password=node.password)
                 output = ssh_stdout.read().decode("utf-8")
                 output.replace(node.password, "*" * len(node.password))
+                ssh.close()
                 return output
         elif action == "pull":
             cmd = "docker version --format '{{.Client.APIVersion}}'"
@@ -130,6 +124,7 @@ def get_node(node_id: int):
                 )
                 # The tag to pull. If tag is None or empty, it is set to latest.
                 repository = "ghcr.io/sentinel-official/dvpn-node"
+                ssh.close()
                 return docker_client.pull(repository, tag=None)
 
     ssh_stdin, ssh_stdout, ssh_stderr = sudo_exec_command(ssh, "sudo whoami", password=node.password)
@@ -196,8 +191,6 @@ def get_node(node_id: int):
                 # stats = docker_client.stats(container["Id"], decode=False, stream=False, one_shot=True)
                 # container.update({"Stats": stats})
 
-    ssh.close()
-
     node.password = "*" * len(node.password)
     node_info = node.as_dict()
     node_info.update({
@@ -207,7 +200,23 @@ def get_node(node_id: int):
         "docker_images": docker_images
     })
 
-    return render_template("node.html", node_id=node_id, node_info=node_info)
+    default_node_config = copy.deepcopy(ConfigHandler.node)
+    if containers == []:
+        tcp_port = secrets.SystemRandom().randrange(1000, 9000)
+        name = randomname.get_name()
+        default_node_config["node"]["moniker"]["value"] = name
+        default_node_config["node"]["remote_url"]["value"] = f"https://{ifconfig()}:{tcp_port}"
+        default_node_config["node"]["listen_on"]["value"] = f"0.0.0.0:{tcp_port}"
+        default_node_config["extras"]["udp_port"]["value"] = secrets.SystemRandom().randrange(
+            1000, 9000
+        )
+        home_directory = ssh_get_home(ssh)
+        default_node_config["extras"]["node_folder"]["value"] = os.path.join(
+            home_directory, f".sentinel-node-{name}"
+        )
+
+    ssh.close()
+    return render_template("node.html", node_id=node_id, node_info=node_info, default_node_config=default_node_config)
 
 
 @app.route("/create", methods=("GET", "POST"))

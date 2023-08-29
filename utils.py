@@ -61,6 +61,7 @@ class SSHAdapterPassword(SSHHTTPAdapter):
             self.ssh_params["password"] = self.password
             self.ssh_client.connect(**self.ssh_params)
 
+
 def ssh_docker(host: str, username: str, docker_api_version: str, password: str = None, port:int = 22) -> APIClient | None:
     client = APIClient(f'ssh://{host}:{port}', use_ssh_client=True, version=docker_api_version)
     ssh_adapter = SSHAdapterPassword(f'ssh://{username}@{host}:{port}', password=password)
@@ -79,9 +80,12 @@ def ssh_read_file(ssh: paramiko.SSHClient, fpath: str) -> str:
     sftp.close()
     return content
 
+def ssh_get_home(ssh: paramiko.SSHClient) -> str:
+    ssh_stdin, ssh_stdout, ssh_stderr = ssh.exec_command("echo ${HOME}")
+    return ssh_stdout.read().decode("utf-8").strip()
+
 def ssh_put_file(ssh: paramiko.SSHClient, fpath: str) -> bool:
-    ssh_stdin, ssh_stdout, ssh_stderr = sudo_exec_command(ssh, "echo ${HOME}")
-    home_directory = ssh_stdout.read().decode("utf-8").strip()
+    home_directory = ssh_get_home(ssh)
     ftp = ssh.open_sftp()
     fname = os.path.basename(fpath)
     ftp.put(fpath, os.path.join(home_directory, fname))

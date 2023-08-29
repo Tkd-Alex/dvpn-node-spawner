@@ -1,7 +1,7 @@
 {% extends 'base.html' %}
 
 {% block content %}
-    <h3>{% block title %} Node dashboard {% endblock %}</h3>
+    <h3>{% block title %} Node {% endblock %}</h3>
     <h4 class="text-primary">#{{ node_info._id }} - {{ node_info.username }}@{{ node_info.host }} -p {{ node_info.port }}</h4>
     <div class="row">
         <div class="col-9">
@@ -30,6 +30,13 @@
     </div>
 
     <br>
+
+    {% if node_info.docker_installed == true and node_info.docker_images | length != 0 and node_info.containers | length == 0 %}
+        {% with config=default_node_config %}
+            {% include "node-config.html" %}
+        {% endwith %}
+    {% endif %}
+
     {% for container in node_info.containers %}
         <table class="table">
             <thead>
@@ -95,43 +102,21 @@
 
         <ul class="nav nav-tabs" role="tablist">
             <li class="nav-item" role="presentation">
-                <button class="nav-link" id="config-tab" data-bs-toggle="tab" data-bs-target="#config" type="button" role="tab" aria-controls="config" aria-selected="true">Node config</button>
+                <button class="nav-link active" id="config-tab" data-bs-toggle="tab" data-bs-target="#config" type="button" role="tab" aria-controls="config" aria-selected="true">Node config</button>
               </li>
             <li class="nav-item" role="presentation">
-              <button class="nav-link active" id="status-tab" data-bs-toggle="tab" data-bs-target="#status" type="button" role="tab" aria-controls="status" aria-selected="false">Node status</button>
+              <button class="nav-link" id="status-tab" data-bs-toggle="tab" data-bs-target="#status" type="button" role="tab" aria-controls="status" aria-selected="false">Node status</button>
             </li>
         </ul>
         <div class="tab-content">
-            <div class="tab-pane fade show active" id="status" role="tabpanel" aria-labelledby="status-tab">
-                <pre id="json-renderer-{{ container['Id'] }}"></pre>
-            </div>
-            <div class="tab-pane fade" id="config" role="tabpanel" aria-labelledby="config-tab">
+            <div class="tab-pane fade show active" id="config" role="tabpanel" aria-labelledby="config-tab">
                 <br>
-                <form method="post">
-                    {% for header in container['NodeConfig'] %}
-                        <div class="row">
-                            <h5><i class="bi bi-caret-right-fill"></i> [{{ header }}]</h5>
-                            {% for key in container['NodeConfig'][header] %}
-                                <div class="form-group col-6">
-                                    <label for="{{key}}-id">{{ key }} - <small class="form-text text-muted">{{container['NodeConfig'][header][key]['description']}}</small></label>
-                                    {% if 'options' in container['NodeConfig'][header][key] %}
-                                    <select class="form-control" name="{{header}}.{{key}}" id="{{key}}-id" placeholder="{{key}}" value="{{container['NodeConfig'][header][key]['value']}}">
-                                        {% for option in container['NodeConfig'][header][key]['options'] %}
-                                        <option value="{{option}}">{{option}}</option>
-                                        {% endfor %}
-                                    </select>
-                                    {% elif container['NodeConfig'][header][key]['value'] is number %}
-                                        <input type="number" class="form-control" name="{{header}}.{{key}}" id="{{key}}-id" placeholder="{{key}}" value="{{container['NodeConfig'][header][key]['value']}}">
-                                    {% else %}
-                                        <input type="text" class="form-control" name="{{header}}.{{key}}" id="{{key}}-id" placeholder="{{key}}" value="{{container['NodeConfig'][header][key]['value']}}">
-                                    {% endif %}
-                                </div>
-                            {% endfor %}
-                        </div>
-                        <br>
-                    {% endfor %}
-                    <button type="submit" class="btn btn-primary my-1">Save configuration</button>
-                </form>
+                {% with config=container.NodeConfig %}
+                    {% include "node-config.html" %}
+                {% endwith %}
+            </div>
+            <div class="tab-pane fade" id="status" role="tabpanel" aria-labelledby="status-tab">
+                <pre id="json-renderer-{{ container['Id'] }}"></pre>
             </div>
         </div>
 
