@@ -1,0 +1,32 @@
+{% extends 'base.html' %}
+
+{% block content %}
+    <h3>{% block title %} Create a new node {% endblock %}</h3>
+    <form method="post">
+        {% for header in node_config %}
+            <div class="row">
+                <h5 class="text-primary">{{ header }}</h5>
+                <hr>
+                {% for key in node_config[header] %}
+                    <div class="form-group col-6">
+                        <label for="{{key}}-id">{{key}}</label>
+                        {% if 'options' in node_config[header][key] %}
+                        <select class="form-control" name="{{header}}.{{key}}" id="{{key}}-id" aria-describedby="{{key}}-description" placeholder="{{key}}" value="{{node_config[header][key]['value']}}">
+                            {% for option in node_config[header][key]['options'] %}
+                            <option value="{{option}}">{{option}}</option>
+                            {% endfor %}
+                        </select>
+                        {% elif node_config[header][key]['value'] is number %}
+                        <input type="number" class="form-control" name="{{header}}.{{key}}" id="{{key}}-id" aria-describedby="{{key}}-description" placeholder="{{key}}" value="{{node_config[header][key]['value']}}">
+                        {% else %}
+                        <input type="text" class="form-control" name="{{header}}.{{key}}" id="{{key}}-id" aria-describedby="{{key}}-description" placeholder="{{key}}" value="{{node_config[header][key]['value']}}">
+                        {% endif %}
+                        <small id="{{key}}-description" class="form-text text-muted">{{node_config[header][key]['description']}}</small>
+                    </div>
+                {% endfor %}
+            </div>
+            <br>
+        {% endfor %}
+        <button type="submit" class="btn btn-primary my-1">Submit</button>
+    </form>
+{% endblock %}
