@@ -3,9 +3,9 @@
 {% block content %}
     <h3>{% block title %} Node dashboard {% endblock %}</h3>
     <h4 class="text-primary">#{{ node_info._id }} - {{ node_info.username }}@{{ node_info.host }} -p {{ node_info.port }}</h4>
-    <span>Docker installed: <i class="bi {{ 'bi-check-circle-fill text-success' if node_info.docker_installed == true else 'bi-x-circle-fill text-danger' }}"></i></span>
-    <br>
-    <span>Sudoers permission: <i class="bi {{ 'bi-check-circle-fill text-success' if node_info.sudoers_permission == true else 'bi-x-circle-fill text-danger' }}"></i></span>
+    <span><i class="bi {{ 'bi-check-circle-fill text-success' if node_info.docker_installed == true else 'bi-x-circle-fill text-danger' }}"></i>  Docker installed</span><br>
+    <span><i class="bi {{ 'bi-check-circle-fill text-success' if node_info.sudoers_permission == true else 'bi-x-circle-fill text-danger' }}"></i>  Sudoers permission</span><br>
+    <span><i class="bi bi-images"></i>  Docker images: {{ ', '.join(node_info.docker_images) }}</span><br>
 
     {% for container in node_info.containers %}
         <table class="table">
@@ -17,6 +17,7 @@
                 <th scope="col">STATE</th>
                 <th scope="col">STATUS</th>
                 <th scope="col">NAMES</th>
+                <th scope="col"></th>
                 </tr>
             </thead>
             <tbody>
@@ -27,46 +28,109 @@
                     <td>{{ container.State }}</td>
                     <td>{{ container.Status }}</td>
                     <td>{{ ', '.join(container.Names) }}</td>
+                    <td>
+                        <button
+                            onclick="nodeAction('{{ node_info._id }}', '{{ container.Id }}', 'restart')"
+                            data-toggle="tooltip"
+                            data-placement="top"
+                            title="Reboot"
+                            class="btn btn-sm">
+                            <i class="bi bi-arrow-clockwise"></i>
+                        </button>
+                        {% if container.State != 'running' %}
+                            <button
+                                onclick="nodeAction('{{ node_info._id }}', '{{ container.Id }}', 'start')"
+                                data-toggle="tooltip"
+                                data-placement="top"
+                                title="Play"
+                                class="btn btn-sm">
+                                <i class="bi bi-play-circle"></i>
+                            </button>
+                        {% endif %}
+                        {% if container.State == 'running' %}
+                            <button
+                                onclick="nodeAction('{{ node_info._id }}', '{{ container.Id }}', 'stop')"
+                                data-toggle="tooltip"
+                                data-placement="top"
+                                title="Stop"
+                                class="btn btn-sm">
+                                <i class="bi bi-stop-circle"></i>
+                            </button>
+                        {% endif %}
+                        <button
+                            onclick="nodeAction('{{ node_info._id }}', '{{ container.Id }}', 'remove_container')"
+                            data-toggle="tooltip"
+                            data-placement="top"
+                            title="Delete"
+                            class="btn btn-sm">
+                            <i class="bi bi-trash"></i>
+                        </button>
+                    </td>
                 </tr>
             </tbody>
         </table>
 
-        <h5>Node status</h5>
-        <pre id="json-renderer-{{ container['Id'] }}" style="max-height: 500px;"></pre>
-
-        <h5>Node config</h5>
-        <form method="post">
-            {% for header in container['NodeConfig'] %}
-                <div class="row">
-                    <h5 class="text-primary">{{ header }}</h5>
-                    <hr>
-                    {% for key in container['NodeConfig'][header] %}
-                        <div class="form-group col-6">
-                            <label for="{{key}}-id">{{key}}</label>
-                            {% if 'options' in container['NodeConfig'][header][key] %}
-                            <select class="form-control" name="{{header}}.{{key}}" id="{{key}}-id" aria-describedby="{{key}}-description" placeholder="{{key}}" value="{{container['NodeConfig'][header][key]['value']}}">
-                                {% for option in container['NodeConfig'][header][key]['options'] %}
-                                <option value="{{option}}">{{option}}</option>
-                                {% endfor %}
-                            </select>
-                            {% elif container['NodeConfig'][header][key]['value'] is number %}
-                            <input type="number" class="form-control" name="{{header}}.{{key}}" id="{{key}}-id" aria-describedby="{{key}}-description" placeholder="{{key}}" value="{{container['NodeConfig'][header][key]['value']}}">
-                            {% else %}
-                            <input type="text" class="form-control" name="{{header}}.{{key}}" id="{{key}}-id" aria-describedby="{{key}}-description" placeholder="{{key}}" value="{{container['NodeConfig'][header][key]['value']}}">
-                            {% endif %}
-                            <small id="{{key}}-description" class="form-text text-muted">{{container['NodeConfig'][header][key]['description']}}</small>
-                        </div>
-                    {% endfor %}
-                </div>
+        <ul class="nav nav-tabs" id="myTab" role="tablist">
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="config-tab" data-bs-toggle="tab" data-bs-target="#config" type="button" role="tab" aria-controls="config" aria-selected="true">Node config</button>
+              </li>
+            <li class="nav-item" role="presentation">
+              <button class="nav-link active" id="status-tab" data-bs-toggle="tab" data-bs-target="#status" type="button" role="tab" aria-controls="status" aria-selected="false">Node status</button>
+            </li>
+        </ul>
+        <div class="tab-content" id="myTabContent">
+            <div class="tab-pane fade show active" id="status" role="tabpanel" aria-labelledby="status-tab">
+                <pre id="json-renderer-{{ container['Id'] }}"></pre>
+            </div>
+            <div class="tab-pane fade" id="config" role="tabpanel" aria-labelledby="config-tab">
                 <br>
-            {% endfor %}
-            <button type="submit" class="btn btn-primary my-1">Submit</button>
-        </form>
+                <form method="post">
+                    {% for header in container['NodeConfig'] %}
+                        <div class="row">
+                            <h5><i class="bi bi-caret-right-fill"></i> [{{ header }}]</h5>
+                            {% for key in container['NodeConfig'][header] %}
+                                <div class="form-group col-6">
+                                    <label for="{{key}}-id">{{ key }} - <small class="form-text text-muted">{{container['NodeConfig'][header][key]['description']}}</small></label>
+                                    {% if 'options' in container['NodeConfig'][header][key] %}
+                                    <select class="form-control" name="{{header}}.{{key}}" id="{{key}}-id" placeholder="{{key}}" value="{{container['NodeConfig'][header][key]['value']}}">
+                                        {% for option in container['NodeConfig'][header][key]['options'] %}
+                                        <option value="{{option}}">{{option}}</option>
+                                        {% endfor %}
+                                    </select>
+                                    {% elif container['NodeConfig'][header][key]['value'] is number %}
+                                        <input type="number" class="form-control" name="{{header}}.{{key}}" id="{{key}}-id" placeholder="{{key}}" value="{{container['NodeConfig'][header][key]['value']}}">
+                                    {% else %}
+                                        <input type="text" class="form-control" name="{{header}}.{{key}}" id="{{key}}-id" placeholder="{{key}}" value="{{container['NodeConfig'][header][key]['value']}}">
+                                    {% endif %}
+                                </div>
+                            {% endfor %}
+                        </div>
+                        <br>
+                    {% endfor %}
+                    <button type="submit" class="btn btn-primary my-1">Save configuration</button>
+                </form>
+            </div>
+        </div>
+
 
         <script>
             var data = JSON.parse('{{ container["NodeStatus"] | tojson}}')
             $("#json-renderer-{{ container['Id'] }}").jsonViewer(data, {collapsed: false, withQuotes: true, withLinks: true});
         </script>
-
     {% endfor %}
+
+    <script>
+        function nodeAction(node_id, container_id, action) {
+            fetch(`/api/node/${node_id}/${container_id}`, {
+                headers: {
+                    'Accept': 'application/json',
+                    'Content-Type': 'application/json'
+                },
+                method: "POST",
+                body: JSON.stringify({action: action})
+            })
+            .then((res) => { console.log(res) })
+            .catch((res) => { console.log(res) })
+        }
+    </script>
 {% endblock %}

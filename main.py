@@ -91,8 +91,38 @@ def get_nodes():
 
     return render_template('nodes.html', nodes=nodes)
 
-@app.route("/node/<node_id>", methods=("GET", "POST"))
-def get_node(node_id):
+
+@app.route("/api/node/<node_id>/<container_id>", methods=["POST"])
+def post_container(node_id: int, container_id: str):
+    json_request = request.get_json()
+    action = json_request.get("action", None)
+    if action in ["stop", "remove_container", "restart", "start"]:
+        node = db.session.get(Nodes, node_id)
+        ssh = ssh_connection(
+            host=node.host,
+            username=node.username,
+            password=node.password,
+            port=node.port
+        )
+        docker_client = ssh_docker(
+            host=node.host,
+            username=node.username,
+            docker_api_version=docker_api_version,
+            password=node.password,
+            port=node.port
+        )
+        if action == "stop":
+            docker_client.stop(container_id)
+        elif action == "remove_container":
+            docker_client.remove_container(container_id)
+        elif action == "restart":
+            docker_client.restart(container_id)
+        elif action == "start":
+            docker_client.start(container_id)
+
+
+@app.route("/node/<node_id>", methods=["GET", "POST"])
+def get_node(node_id: int):
     node = db.session.get(Nodes, node_id)
     ssh = ssh_connection(
         host=node.host,
@@ -108,6 +138,7 @@ def get_node(node_id):
     output_error = ssh_stderr.read().decode("utf-8").strip()
     docker_installed = not output_error.endswith("command not found")
 
+    docker_images = []
     containers = []
     if docker_installed is True:
         cmd = "docker version --format '{{.Client.APIVersion}}'"
@@ -122,18 +153,24 @@ def get_node(node_id):
             port=node.port
         )
         if docker_client is not None:
+            for image in docker_client.images():
+                docker_images += image["RepoTags"]
+
             containers = docker_client.containers()
             containers = [c for c in containers if c['Image'] == 'sentinel-dvpn-node']
             # For each container search for tcp port and then get node status
             # Estract al node config
             for container in containers:
                 container["Created"] = datetime.datetime.fromtimestamp(container["Created"]).strftime("%m/%d/%Y, %H:%M:%S")
-                for port in container["Ports"]:
-                    if port["IP"] == "0.0.0.0" and port["Type"] == "tcp":
-                        container.update({
-                            "NodeStatus": node_status(node.host, port["PublicPort"])
-                        })
-                        break
+                container["NodeStatus"] = {}
+                if container["State"] == "running":
+                    for port in container["Ports"]:
+                        if port["IP"] == "0.0.0.0" and port["Type"] == "tcp":
+                            try:
+                                container["NodeStatus"] = node_status(node.host, port["PublicPort"])
+                                break
+                            except Exception as e:
+                                container["NodeStatus"] = {"exception": e}
                 for mount in container["Mounts"]:
                     if mount['Type'] == 'bind' and mount["Source"] != "/lib/modules":
                         node_config_fpath = os.path.join(mount["Source"], "config.toml")
@@ -147,7 +184,7 @@ def get_node(node_id):
                         service_config = tomllib.loads(service_config)
                         node_config["extras"]["udp_port"]["value"] = service_config["vmess"]["listen_port"] if service_type == "v2ray" else service_config["listen_port"]
 
-                        container.update({ "NodeConfig": node_config })
+                        container["NodeConfig"] = node_config
                         break
 
                 # stats = docker_client.stats(container["Id"], decode=False, stream=False, one_shot=True)
@@ -160,7 +197,8 @@ def get_node(node_id):
     node_info.update({
         "sudoers_permission": sudoers_permission,
         "docker_installed": docker_installed,
-        "containers": containers
+        "containers": containers,
+        "docker_images": docker_images
     })
 
     return render_template("node.html", node_id=node_id, node_info=node_info)
