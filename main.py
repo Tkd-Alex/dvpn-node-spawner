@@ -1,6 +1,5 @@
 import docker
 import os
-import tomllib
 import copy
 import secrets
 import randomname
@@ -32,27 +31,28 @@ client = docker.from_env()
 try:
     dvpn_node_image = client.images.get(dvpn_node_repo)
 except docker.errors.ImageNotFound:
-    answer = parse_input(f"{dvpn_node_repo} image not found.\nWould do you like to pull?")
+    answer = parse_input(
+        f"{dvpn_node_repo} image not found.\nWould do you like to pull?"
+    )
     if answer is True:
         # If tag is None or empty, it is set to latest
         dvpn_node_image = client.images.pull(dvpn_node_repo, tag=None)
 
-@app.route('/containers', methods=["GET"])
+
+@app.route("/containers", methods=["GET"])
 def get_containers():
     containers = client.containers.list(all=True)
     print(containers)
     return "Hello world"
 
-import code
 
-
-@app.route('/create/', methods=('GET', 'POST'))
+@app.route("/create/", methods=("GET", "POST"))
 def create():
     node_config = copy.deepcopy(ConfigHandler.node)
-    if request.method == 'POST':
+    if request.method == "POST":
         form = request.form.to_dict()
         for conf in form:
-            group, key = conf.split('.')
+            group, key = conf.split(".")
             node_config[group][key]["value"] = form[conf]
         validated = ConfigHandler.validate_config(node_config)
         if type(validated) == bool and validated == True:
@@ -63,37 +63,46 @@ def create():
             node_type = node_config["node"]["type"]["value"]
             if node_type == "wireguard":
                 wireguard_config = copy.deepcopy(ConfigHandler.wireguard)
-                wireguard_config["listen_port"]["value"] = node_config["extras"]["udp_port"]["value"]
+                wireguard_config["listen_port"]["value"] = node_config["extras"][
+                    "udp_port"
+                ]["value"]
                 wireguard_config["private_key"]["value"] = WgPsk().key
                 with open(os.path.join(node_folder, "wireguard.toml"), "w") as f:
                     f.write(ConfigHandler.tomlize(wireguard_config))
             elif node_type == "v2ray":
                 v2ray_config = copy.deepcopy(ConfigHandler.v2ray)
-                v2ray_config["vmess"]["listen_port"]["value"] = node_config["extras"]["udp_port"]["value"]
+                v2ray_config["vmess"]["listen_port"]["value"] = node_config["extras"][
+                    "udp_port"
+                ]["value"]
                 with open(os.path.join(node_folder, "v2ray.toml"), "w") as f:
                     f.write(ConfigHandler.tomlize(v2ray_config))
 
-            return render_template('create.html', node_config=node_config, alert={"message": "Configuration validated", "success": True})
+            return render_template(
+                "create.html",
+                node_config=node_config,
+                alert={"message": "Configuration validated", "success": True},
+            )
         else:
-            return render_template('create.html', node_config=node_config, alert={"message": validated, "success": False})
+            return render_template(
+                "create.html",
+                node_config=node_config,
+                alert={"message": validated, "success": False},
+            )
     else:
         tcp_port = secrets.SystemRandom().randrange(1000, 9000)
         name = randomname.get_name()
         node_config["node"]["moniker"]["value"] = name
         node_config["node"]["remote_url"]["value"] = f"https://{ifconfig()}:{tcp_port}"
         node_config["node"]["listen_on"]["value"] = f"0.0.0.0:{tcp_port}"
-        node_config["extras"]["udp_port"]["value"] = secrets.SystemRandom().randrange(1000, 9000)
-        node_config["extras"]["node_folder"]["value"] = os.path.join(os.getcwd(), "nodes", name)
+        node_config["extras"]["udp_port"]["value"] = secrets.SystemRandom().randrange(
+            1000, 9000
+        )
+        node_config["extras"]["node_folder"]["value"] = os.path.join(
+            os.getcwd(), "nodes", name
+        )
 
-    return render_template('create.html', node_config=node_config)
+    return render_template("create.html", node_config=node_config)
 
-@app.route('/')
-def index():
-    return render_template('index.html', messages=[{'title': 'Message One',
-             'content': 'Message One Content'},
-            {'title': 'Message Two',
-             'content': 'Message Two Content'}
-            ])
 
 if __name__ == "__main__":
-    app.run(host='127.0.0.1', port=3845, debug=True)
+    app.run(host="127.0.0.1", port=3845, debug=True)
