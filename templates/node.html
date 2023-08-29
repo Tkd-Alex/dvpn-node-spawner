@@ -3,10 +3,33 @@
 {% block content %}
     <h3>{% block title %} Node dashboard {% endblock %}</h3>
     <h4 class="text-primary">#{{ node_info._id }} - {{ node_info.username }}@{{ node_info.host }} -p {{ node_info.port }}</h4>
-    <span><i class="bi {{ 'bi-check-circle-fill text-success' if node_info.docker_installed == true else 'bi-x-circle-fill text-danger' }}"></i>  Docker installed</span><br>
-    <span><i class="bi {{ 'bi-check-circle-fill text-success' if node_info.sudoers_permission == true else 'bi-x-circle-fill text-danger' }}"></i>  Sudoers permission</span><br>
-    <span><i class="bi bi-images"></i>  Docker images: {{ ', '.join(node_info.docker_images) }}</span><br>
+    <div class="row">
+        <div class="col-9">
+            <span><i class="bi {{ 'bi-check-circle-fill text-success' if node_info.docker_installed == true else 'bi-x-circle-fill text-danger' }}"></i>  Docker installed</span><br>
+            <span><i class="bi {{ 'bi-check-circle-fill text-success' if node_info.sudoers_permission == true else 'bi-x-circle-fill text-danger' }}"></i>  Sudoers permission</span><br>
+            <span><i class="bi bi-images"></i>  Docker images: {{ ', '.join(node_info.docker_images) }}</span><br>
+        </div>
+        <div class="col-3">
+            <div class="d-grid gap-2">
+                <button
+                    onclick="nodeAction('install')"
+                    class="btn btn-outline-info btn-sm"
+                    {{ 'disabled' if node_info.docker_installed == true else '' }}
+                    type="button">
+                    <i class="bi bi-gear-fill"></i> Install docker
+                </button>
+                <button
+                    onclick="nodeAction('pull')"
+                    class="btn btn-outline-info btn-sm"
+                    {{ 'disabled' if node_info.docker_installed != true else '' }}
+                    type="button"
+                    ><i class="bi bi-cloud-arrow-down-fill"></i> Pull image
+                </button>
+            </div>
+        </div>
+    </div>
 
+    <br>
     {% for container in node_info.containers %}
         <table class="table">
             <thead>
@@ -28,9 +51,9 @@
                     <td>{{ container.State }}</td>
                     <td>{{ container.Status }}</td>
                     <td>{{ ', '.join(container.Names) }}</td>
-                    <td>
+                    <td class="text-end">
                         <button
-                            onclick="nodeAction('{{ node_info._id }}', '{{ container.Id }}', 'restart')"
+                            onclick="containerAction('{{ node_info._id }}', '{{ container.Id }}', 'restart')"
                             data-toggle="tooltip"
                             data-placement="top"
                             title="Reboot"
@@ -39,7 +62,7 @@
                         </button>
                         {% if container.State != 'running' %}
                             <button
-                                onclick="nodeAction('{{ node_info._id }}', '{{ container.Id }}', 'start')"
+                                onclick="containerAction('{{ node_info._id }}', '{{ container.Id }}', 'start')"
                                 data-toggle="tooltip"
                                 data-placement="top"
                                 title="Play"
@@ -49,7 +72,7 @@
                         {% endif %}
                         {% if container.State == 'running' %}
                             <button
-                                onclick="nodeAction('{{ node_info._id }}', '{{ container.Id }}', 'stop')"
+                                onclick="containerAction('{{ node_info._id }}', '{{ container.Id }}', 'stop')"
                                 data-toggle="tooltip"
                                 data-placement="top"
                                 title="Stop"
@@ -58,7 +81,7 @@
                             </button>
                         {% endif %}
                         <button
-                            onclick="nodeAction('{{ node_info._id }}', '{{ container.Id }}', 'remove_container')"
+                            onclick="containerAction('{{ node_info._id }}', '{{ container.Id }}', 'remove_container')"
                             data-toggle="tooltip"
                             data-placement="top"
                             title="Delete"
@@ -70,7 +93,7 @@
             </tbody>
         </table>
 
-        <ul class="nav nav-tabs" id="myTab" role="tablist">
+        <ul class="nav nav-tabs" role="tablist">
             <li class="nav-item" role="presentation">
                 <button class="nav-link" id="config-tab" data-bs-toggle="tab" data-bs-target="#config" type="button" role="tab" aria-controls="config" aria-selected="true">Node config</button>
               </li>
@@ -78,7 +101,7 @@
               <button class="nav-link active" id="status-tab" data-bs-toggle="tab" data-bs-target="#status" type="button" role="tab" aria-controls="status" aria-selected="false">Node status</button>
             </li>
         </ul>
-        <div class="tab-content" id="myTabContent">
+        <div class="tab-content">
             <div class="tab-pane fade show active" id="status" role="tabpanel" aria-labelledby="status-tab">
                 <pre id="json-renderer-{{ container['Id'] }}"></pre>
             </div>
@@ -120,7 +143,8 @@
     {% endfor %}
 
     <script>
-        function nodeAction(node_id, container_id, action) {
+        function containerAction(node_id, container_id, action) {
+            $("#spinner").removeAttr('hidden');
             fetch(`/api/node/${node_id}/${container_id}`, {
                 headers: {
                     'Accept': 'application/json',
@@ -129,8 +153,36 @@
                 method: "POST",
                 body: JSON.stringify({action: action})
             })
-            .then((res) => { console.log(res) })
-            .catch((res) => { console.log(res) })
+            .then((response) => response.text())
+            .then((data)=> {
+                console.log(data);
+                $("#spinner").attr("hidden", true);
+
+                $("#messageModalBody").text(data)
+                new bootstrap.Modal($("#messageModal"), {}).show();
+            })
+            .catch((error) => { console.log(error); $("#spinner").attr("hidden", true); })
+        }
+
+        function nodeAction(action) {
+            $("#spinner").removeAttr('hidden');
+            fetch(window.location.href, {
+                headers: {
+                    'Accept': 'application/json',
+                    'Content-Type': 'application/json'
+                },
+                method: "POST",
+                body: JSON.stringify({action: action})
+            })
+            .then((response) => response.text())
+            .then((data)=> {
+                console.log(data);
+                $("#spinner").attr("hidden", true);
+
+                $("#messageModalBody").text(data)
+                new bootstrap.Modal($("#messageModal"), {}).show();
+            })
+            .catch((error) => { console.log(error); $("#spinner").attr("hidden", true); })
         }
     </script>
 {% endblock %}

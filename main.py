@@ -3,6 +3,7 @@ import os
 import copy
 import secrets
 import randomname
+import re
 import datetime
 import json
 import tomllib
@@ -13,7 +14,7 @@ from shutil import which
 from flask import Flask, render_template, request, jsonify
 from flask_sqlalchemy import SQLAlchemy
 
-from utils import ifconfig, parse_input, ssh_connection, sudo_exec_command, ssh_docker, node_status, ssh_read_file
+from utils import ifconfig, parse_input, ssh_connection, sudo_exec_command, ssh_docker, node_status, ssh_read_file, ssh_put_file
 
 from ConfigHandler import ConfigHandler
 
@@ -37,32 +38,6 @@ class Nodes(db.Model):
 
     def as_dict(self):
        return {c.name: getattr(self, c.name) for c in self.__table__.columns}
-
-
-"""
-dvpn_node_repo = "ghcr.io/sentinel-official/dvpn-node"
-
-if which("docker") is None:
-    answer = parse_input("Docker not found.\nWould do you like to install?")
-    if answer is True:
-        cmd = "bash " + os.path.join(os.getcwd(), "docker-install.sh")
-        process = Popen(cmd, shell=True, stout=None, stderr=None)
-        process.wait()
-    else:
-        exit(1)
-
-client = docker.from_env()
-
-try:
-    dvpn_node_image = client.images.get(dvpn_node_repo)
-except docker.errors.ImageNotFound:
-    answer = parse_input(
-        f"{dvpn_node_repo} image not found.\nWould do you like to pull?"
-    )
-    if answer is True:
-        # If tag is None or empty, it is set to latest
-        dvpn_node_image = client.images.pull(dvpn_node_repo, tag=None)
-"""
 
 
 @app.route("/containers", methods=["GET"])
@@ -131,20 +106,51 @@ def get_node(node_id: int):
         port=node.port
     )
 
+    if request.method == "POST":
+        json_request = request.get_json()
+        action = json_request.get("action", None)
+        if action == "install":
+            if ssh_put_file(ssh, os.path.join(os.getcwd(), "docker-install.sh")) is True:
+                ssh_stdin, ssh_stdout, ssh_stderr = sudo_exec_command(ssh, "sudo bash ${HOME}/docker-install.sh", password=node.password)
+                output = ssh_stdout.read().decode("utf-8")
+                output.replace(node.password, "*" * len(node.password))
+                return output
+        elif action == "pull":
+            cmd = "docker version --format '{{.Client.APIVersion}}'"
+            ssh_stdin, ssh_stdout, ssh_stderr = ssh.exec_command(cmd)
+            docker_api_version = ssh_stdout.read().decode("utf-8").strip()
+            docker_installed = re.match('^[\.0-9]*$', docker_api_version) is not None
+            if docker_installed is True:
+                docker_client = ssh_docker(
+                    host=node.host,
+                    username=node.username,
+                    docker_api_version=docker_api_version,
+                    password=node.password,
+                    port=node.port
+                )
+                # The tag to pull. If tag is None or empty, it is set to latest.
+                repository = "ghcr.io/sentinel-official/dvpn-node"
+                return docker_client.pull(repository, tag=None)
+
     ssh_stdin, ssh_stdout, ssh_stderr = sudo_exec_command(ssh, "sudo whoami", password=node.password)
     sudoers_permission = ssh_stdout.readlines()[-1].strip() == "root"
 
-    ssh_stdin, ssh_stdout, ssh_stderr = sudo_exec_command(ssh, "docker", password=node.password)
-    output_error = ssh_stderr.read().decode("utf-8").strip()
-    docker_installed = not output_error.endswith("command not found")
+    """
+    ssh_stdin, ssh_stdout, ssh_stderr = ssh.exec_command("docker")
+    docker_installed = not ("not found" in " ".join([
+        ssh_stdout.read().decode("utf-8"),
+        ssh_stderr.read().decode("utf-8")
+    ]))
+    """
+
+    cmd = "docker version --format '{{.Client.APIVersion}}'"
+    ssh_stdin, ssh_stdout, ssh_stderr = ssh.exec_command(cmd)
+    docker_api_version = ssh_stdout.read().decode("utf-8").strip()
+    docker_installed = re.match('^[\.0-9]*$', docker_api_version) is not None
 
     docker_images = []
     containers = []
     if docker_installed is True:
-        cmd = "docker version --format '{{.Client.APIVersion}}'"
-        ssh_stdin, ssh_stdout, ssh_stderr = sudo_exec_command(ssh, cmd, password=node.password)
-        docker_api_version = ssh_stdout.read().decode("utf-8").strip()
-
         docker_client = ssh_docker(
             host=node.host,
             username=node.username,
@@ -157,7 +163,7 @@ def get_node(node_id: int):
                 docker_images += image["RepoTags"]
 
             containers = docker_client.containers()
-            containers = [c for c in containers if c['Image'] == 'sentinel-dvpn-node']
+            containers = [c for c in containers if c['Image'].endswith('dvpn-node')]
             # For each container search for tcp port and then get node status
             # Estract al node config
             for container in containers:

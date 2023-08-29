@@ -3,6 +3,8 @@ import urllib.request
 import paramiko
 import json
 import ssl
+import os
+import time
 
 from docker import APIClient
 from docker.transport import SSHHTTPAdapter
@@ -76,3 +78,12 @@ def ssh_read_file(ssh: paramiko.SSHClient, fpath: str) -> str:
     rfile.close()
     sftp.close()
     return content
+
+def ssh_put_file(ssh: paramiko.SSHClient, fpath: str) -> bool:
+    ssh_stdin, ssh_stdout, ssh_stderr = sudo_exec_command(ssh, "echo ${HOME}")
+    home_directory = ssh_stdout.read().decode("utf-8").strip()
+    ftp = ssh.open_sftp()
+    fname = os.path.basename(fpath)
+    ftp.put(fpath, os.path.join(home_directory, fname))
+    ftp.close()
+    return True
