@@ -1,27 +1,27 @@
 {% extends 'base.html' %}
 
 {% block content %}
-    <h3>{% block title %} Node {% endblock %}</h3>
-    <h4 class="text-primary">#{{ node_info._id }} - {{ node_info.username }}@{{ node_info.host }} -p {{ node_info.port }}</h4>
+    <h3>{% block title %} Server {% endblock %}</h3>
+    <h4 class="text-primary">#{{ server_info._id }} - {{ server_info.username }}@{{ server_info.host }} -p {{ server_info.port }}</h4>
     <div class="row">
         <div class="col-9">
-            <span><i class="bi {{ 'bi-check-circle-fill text-success' if node_info.docker_installed == true else 'bi-x-circle-fill text-danger' }}"></i>  Docker installed</span><br>
-            <span><i class="bi {{ 'bi-check-circle-fill text-success' if node_info.sudoers_permission == true else 'bi-x-circle-fill text-danger' }}"></i>  Sudoers permission</span><br>
-            <span><i class="bi bi-images"></i>  Docker images: {{ ', '.join(node_info.docker_images) }}</span><br>
+            <span><i class="bi {{ 'bi-check-circle-fill text-success' if server_info.docker_installed == true else 'bi-x-circle-fill text-danger' }}"></i>  Docker installed</span><br>
+            <span><i class="bi {{ 'bi-check-circle-fill text-success' if server_info.sudoers_permission == true else 'bi-x-circle-fill text-danger' }}"></i>  Sudoers permission</span><br>
+            <span><i class="bi bi-images"></i>  Docker images: {{ ', '.join(server_info.docker_images) }}</span><br>
         </div>
         <div class="col-3">
             <div class="d-grid gap-2">
                 <button
-                    onclick="nodeAction('install')"
+                    onclick="dockerAction('install')"
                     class="btn btn-outline-info btn-sm"
-                    {{ 'disabled' if node_info.docker_installed == true else '' }}
+                    {{ 'disabled' if server_info.docker_installed == true else '' }}
                     type="button">
                     <i class="bi bi-gear-fill"></i> Install docker
                 </button>
                 <button
-                    onclick="nodeAction('pull')"
+                    onclick="dockerAction('pull')"
                     class="btn btn-outline-info btn-sm"
-                    {{ 'disabled' if node_info.docker_installed != true else '' }}
+                    {{ 'disabled' if server_info.docker_installed != true else '' }}
                     type="button"
                     ><i class="bi bi-cloud-arrow-down-fill"></i> Pull image
                 </button>
@@ -31,13 +31,13 @@
 
     <br>
 
-    {% if node_info.docker_installed == true and node_info.docker_images | length != 0 and node_info.containers | length == 0 %}
+    {% if server_info.docker_installed == true and server_info.docker_images | length != 0 and server_info.containers | length == 0 %}
         {% with config=default_node_config %}
             {% include "node-config.html" %}
         {% endwith %}
     {% endif %}
 
-    {% for container in node_info.containers %}
+    {% for container in server_info.containers %}
         <table class="table">
             <thead>
                 <tr>
@@ -60,7 +60,7 @@
                     <td>{{ ', '.join(container.Names) }}</td>
                     <td class="text-end">
                         <button
-                            onclick="containerAction('{{ node_info._id }}', '{{ container.Id }}', 'restart')"
+                            onclick="containerAction('{{ server_info._id }}', '{{ container.Id }}', 'restart')"
                             data-toggle="tooltip"
                             data-placement="top"
                             title="Reboot"
@@ -69,7 +69,7 @@
                         </button>
                         {% if container.State != 'running' %}
                             <button
-                                onclick="containerAction('{{ node_info._id }}', '{{ container.Id }}', 'start')"
+                                onclick="containerAction('{{ server_info._id }}', '{{ container.Id }}', 'start')"
                                 data-toggle="tooltip"
                                 data-placement="top"
                                 title="Play"
@@ -79,7 +79,7 @@
                         {% endif %}
                         {% if container.State == 'running' %}
                             <button
-                                onclick="containerAction('{{ node_info._id }}', '{{ container.Id }}', 'stop')"
+                                onclick="containerAction('{{ server_info._id }}', '{{ container.Id }}', 'stop')"
                                 data-toggle="tooltip"
                                 data-placement="top"
                                 title="Stop"
@@ -88,7 +88,7 @@
                             </button>
                         {% endif %}
                         <button
-                            onclick="containerAction('{{ node_info._id }}', '{{ container.Id }}', 'remove_container')"
+                            onclick="containerAction('{{ server_info._id }}', '{{ container.Id }}', 'remove_container')"
                             data-toggle="tooltip"
                             data-placement="top"
                             title="Delete"
@@ -128,9 +128,9 @@
     {% endfor %}
 
     <script>
-        function containerAction(node_id, container_id, action) {
+        function containerAction(server_id, container_id, action) {
             $("#spinner").removeAttr('hidden');
-            fetch(`/api/node/${node_id}/${container_id}`, {
+            fetch(`/api/server/${server_id}/${container_id}`, {
                 headers: {
                     'Accept': 'application/json',
                     'Content-Type': 'application/json'
@@ -149,7 +149,7 @@
             .catch((error) => { console.log(error); $("#spinner").attr("hidden", true); })
         }
 
-        function nodeAction(action) {
+        function dockerAction(action) {
             $("#spinner").removeAttr('hidden');
             fetch(window.location.href, {
                 headers: {

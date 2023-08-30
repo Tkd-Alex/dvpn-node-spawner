@@ -160,6 +160,5 @@ cython_debug/
 #.idea/
 
 # Custom
-nodes/*
-nodes.sqlite3
+*.sqlite3
 sentinelcli

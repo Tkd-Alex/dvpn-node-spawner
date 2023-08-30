@@ -20,11 +20,11 @@ from handlers.Config import Config
 from handlers.SSH import SSH
 
 app = Flask(__name__)
-app.config ['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///nodes.sqlite3'
+app.config ['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///servers.sqlite3'
 
 db = SQLAlchemy(app)
 
-class Nodes(db.Model):
+class Server(db.Model):
     _id = db.Column('_id', db.Integer, primary_key=True, autoincrement=True, nullable=False)
     host = db.Column(db.String, nullable=False)
     username = db.Column(db.String, nullable=False)
@@ -41,37 +41,37 @@ class Nodes(db.Model):
        return {c.name: getattr(self, c.name) for c in self.__table__.columns}
 
 
-@app.route("/nodes", methods=("GET", "POST"))
-def get_nodes():
+@app.route("/servers", methods=("GET", "POST"))
+def get_servers():
     if request.method == "POST":
         form = request.form.to_dict()
-        node = Nodes(
+        server = Servers(
             host=form["host"],
             username=form["username"],
             password=form["password"],
             port=form["port"],
         )
-        db.session.add(node)
+        db.session.add(server)
         db.session.commit()
 
-    nodes = Nodes.query.all()
-    for n in nodes:
-        n.password = "*" * len(n.password)
+    servers = Servers.query.all()
+    for s in servers:
+        s.password = "*" * len(s.password)
 
-    return render_template('nodes.html', nodes=nodes)
+    return render_template('servers.html', servers=servers)
 
 
-@app.route("/api/node/<node_id>/<container_id>", methods=["POST"])
-def post_container(node_id: int, container_id: str):
+@app.route("/api/server/<server_id>/<container_id>", methods=["POST"])
+def post_container(server_id: int, container_id: str):
     json_request = request.get_json()
     action = json_request.get("action", None)
     if action in ["stop", "remove_container", "restart", "start"]:
-        node = db.session.get(Nodes, node_id)
+        server = db.session.get(Servers, server)
         ssh = ssh_connection(
-            host=node.host,
-            username=node.username,
-            password=node.password,
-            port=node.port
+            host=server.host,
+            username=server.username,
+            password=server.password,
+            port=server.port
         )
         docker_client = ssh.docker(docker_api_version)
         if action == "stop":
@@ -84,14 +84,14 @@ def post_container(node_id: int, container_id: str):
             docker_client.start(container_id)
 
 
-@app.route("/node/<node_id>", methods=["GET", "POST"])
-def get_node(node_id: int):
-    node = db.session.get(Nodes, node_id)
+@app.route("/server/<server_id>", methods=["GET", "POST"])
+def get_server(server_id: int):
+    server = db.session.get(Servers, server_id)
     ssh = SSH(
-        host=node.host,
-        username=node.username,
-        password=node.password,
-        port=node.port
+        host=server.host,
+        username=server.username,
+        password=server.password,
+        port=server.port
     )
 
     if request.method == "POST":
@@ -99,9 +99,9 @@ def get_node(node_id: int):
         action = json_request.get("action", None)
         if action == "install":
             if ssh.put_file(os.path.join(os.getcwd(), "docker-install.sh")) is True:
-                ssh_stdin, ssh_stdout, ssh_stderr = ssh.sudo_exec_command("sudo bash ${HOME}/docker-install.sh", password=node.password)
+                ssh_stdin, ssh_stdout, ssh_stderr = ssh.sudo_exec_command("sudo bash ${HOME}/docker-install.sh", password=server.password)
                 output = ssh_stdout.read().decode("utf-8")
-                output.replace(node.password, "*" * len(node.password))
+                output.replace(server.password, "*" * len(server.password))
                 ssh.close()
                 return output
         elif action == "pull":
@@ -110,28 +110,14 @@ def get_node(node_id: int):
             docker_api_version = ssh_stdout.read().decode("utf-8").strip()
             docker_installed = re.match('^[\.0-9]*$', docker_api_version) is not None
             if docker_installed is True:
-                docker_client = ssh_docker(
-                    host=node.host,
-                    username=node.username,
-                    docker_api_version=docker_api_version,
-                    password=node.password,
-                    port=node.port
-                )
+                docker_client = ssh.docker(docker_api_version)
                 # The tag to pull. If tag is None or empty, it is set to latest.
                 repository = "ghcr.io/sentinel-official/dvpn-node"
                 ssh.close()
                 return docker_client.pull(repository, tag=None)
 
-    ssh_stdin, ssh_stdout, ssh_stderr = ssh.sudo_exec_command("sudo whoami", password=node.password)
+    ssh_stdin, ssh_stdout, ssh_stderr = ssh.sudo_exec_command("sudo whoami", password=server.password)
     sudoers_permission = ssh_stdout.readlines()[-1].strip() == "root"
-
-    """
-    ssh_stdin, ssh_stdout, ssh_stderr = ssh.exec_command("docker")
-    docker_installed = not ("not found" in " ".join([
-        ssh_stdout.read().decode("utf-8"),
-        ssh_stderr.read().decode("utf-8")
-    ]))
-    """
 
     cmd = "docker version --format '{{.Client.APIVersion}}'"
     ssh_stdin, ssh_stdout, ssh_stderr = ssh.exec_command(cmd)
@@ -180,9 +166,9 @@ def get_node(node_id: int):
                 # stats = docker_client.stats(container["Id"], decode=False, stream=False, one_shot=True)
                 # container.update({"Stats": stats})
 
-    node.password = "*" * len(node.password)
-    node_info = node.as_dict()
-    node_info.update({
+    server.password = "*" * len(server.password)
+    server_info = server.as_dict()
+    server_info.update({
         "sudoers_permission": sudoers_permission,
         "docker_installed": docker_installed,
         "containers": containers,
@@ -205,7 +191,7 @@ def get_node(node_id: int):
         )
 
     ssh.close()
-    return render_template("node.html", node_id=node_id, node_info=node_info, default_node_config=default_node_config)
+    return render_template("server.html", server_id=server_id, server_info=server_info, default_node_config=default_node_config)
 
 
 @app.route("/create", methods=("GET", "POST"))
@@ -250,18 +236,6 @@ def create_config():
                 node_config=node_config,
                 alert={"message": validated, "success": False},
             )
-    else:
-        tcp_port = secrets.SystemRandom().randrange(1000, 9000)
-        name = randomname.get_name()
-        node_config["node"]["moniker"]["value"] = name
-        node_config["node"]["remote_url"]["value"] = f"https://{ifconfig()}:{tcp_port}"
-        node_config["node"]["listen_on"]["value"] = f"0.0.0.0:{tcp_port}"
-        node_config["extras"]["udp_port"]["value"] = secrets.SystemRandom().randrange(
-            1000, 9000
-        )
-        node_config["extras"]["node_folder"]["value"] = os.path.join(
-            os.getcwd(), "nodes", name
-        )
 
     return render_template("create.html", node_config=node_config)
 
