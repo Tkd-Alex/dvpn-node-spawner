@@ -1,5 +1,6 @@
 import copy
 
+
 def handle_type(value):
     if value in ["True", "False"]:
         return value.lower()
@@ -7,6 +8,7 @@ def handle_type(value):
         return value
     else:
         return f'"{value}"'
+
 
 class Config:
     # https://trinityvalidator.com/docs/node/node-config
@@ -114,13 +116,13 @@ class Config:
             },
             "wallet_password": {
                 "value": "",
-                "description": "Wallet password (only used for keyring = file)"
+                "description": "Wallet password (only used for keyring = file)",
             },
             "wallet_mnemonic": {
                 "value": "",
-                "description": "Wallet bip mnemonic (leave empty for create a new wallet)"
-            }
-        }
+                "description": "Wallet bip mnemonic (leave empty for create a new wallet)",
+            },
+        },
     }
 
     v2ray = {
@@ -162,7 +164,10 @@ class Config:
 
         for group in node_config:
             for key in node_config[group]:
-                if key not in allow_empty and node_config[group][key]["value"] in ["", None]:
+                if key not in allow_empty and node_config[group][key]["value"] in [
+                    "",
+                    None,
+                ]:
                     return f"{group}.{key} cannot be empty"
                 elif node_config[group][key].get("options", None) is not None:
                     options = [str(o) for o in node_config[group][key]["options"]]
@@ -186,11 +191,12 @@ class Config:
                     raw += f"\n[{group}]\n"
                     for key in keys:
                         raw += f"\n# {node_config[group][key]['description']}\n"
-                        raw += f"{key} = {handle_type(node_config[group][key]['value'])}\n"
+                        raw += (
+                            f"{key} = {handle_type(node_config[group][key]['value'])}\n"
+                        )
                 else:
                     raw += f"{group} = {handle_type(node_config[group]['value'])}\n"
         return raw
-
 
     def node_toml2wellknow(node_config: dict) -> dict:
         default_values = copy.deepcopy(Config.node)

@@ -1,10 +1,11 @@
-import platform
 import os
+import platform
 import stat
 import urllib.request
-from subprocess import run, PIPE
+from subprocess import PIPE, run
 
-class SentinelCLI():
+
+class SentinelCLI:
     def __init__(self, keyring_path: str = None):
         # Linux: Linux
         # Mac: Darwin
@@ -29,20 +30,40 @@ class SentinelCLI():
             keyring_path = os.path.join(os.getcwd(), "keyring")
         self.based_cmd = f'{client_path} keys add --home "{keyring_path}" '
 
-    def create_key(self, key_name: str, backend: str = "test", password: str = None) -> str:
+    def create_key(
+        self, key_name: str, backend: str = "test", password: str = None
+    ) -> str:
         cmd = self.based_cmd + f"--keyring-backend {backend} {key_name}"
         if backend == "test":
-            p = run(cmd, shell=True, encoding='ascii', stdout=PIPE, stderr=PIPE)
+            p = run(cmd, shell=True, encoding="ascii", stdout=PIPE, stderr=PIPE)
             return f"{p.stdout} {p.stderr}"
         elif backend == "file":
             if password is None or len(password) < 8:
                 return "Please provide a valid pasword to use for backend file"
-            p = run(cmd, shell=True, encoding='ascii', stdout=PIPE, stderr=PIPE, input=f"{password}\n" * 2)
+            p = run(
+                cmd,
+                shell=True,
+                encoding="ascii",
+                stdout=PIPE,
+                stderr=PIPE,
+                input=f"{password}\n" * 2,
+            )
             return f"{p.stdout} {p.stderr}"
 
-    def recovery_key(self, key_name: str, mnemonic: str, backend: str = "test", password: str = None) -> str:
+    def recovery_key(
+        self, key_name: str, mnemonic: str, backend: str = "test", password: str = None
+    ) -> str:
         if (password is None or len(password) < 8) and backend == "file":
             return "Please provide a valid pasword to use for backend file"
         cmd = self.based_cmd + f"--keyring-backend {backend} {key_name} --recover"
-        p = run(cmd, shell=True, encoding='ascii', stdout=PIPE, stderr=PIPE, input=f"{mnemonic}\n" if backend == "test" else (f"{mnemonic}\n" + f"{password}\n" * 2))
+        p = run(
+            cmd,
+            shell=True,
+            encoding="ascii",
+            stdout=PIPE,
+            stderr=PIPE,
+            input=f"{mnemonic}\n"
+            if backend == "test"
+            else (f"{mnemonic}\n" + f"{password}\n" * 2),
+        )
         return f"{p.stdout} {p.stderr}"

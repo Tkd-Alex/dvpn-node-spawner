@@ -1,33 +1,35 @@
-import docker
-import os
 import copy
-import secrets
-import randomname
-import re
 import datetime
 import json
-import tomllib
+import os
+import re
+import secrets
 import tempfile
+import tomllib
+from shutil import which
+from subprocess import Popen
+
+import docker
+import randomname
+from flask import Flask, jsonify, render_template, request
+from flask_sqlalchemy import SQLAlchemy
 from pywgkey import WgPsk
 
-from subprocess import Popen
-from shutil import which
-from flask import Flask, render_template, request, jsonify
-from flask_sqlalchemy import SQLAlchemy
-
+from handlers.Config import Config
+from handlers.SentinelCLI import SentinelCLI
+from handlers.SSH import SSH
 from utils import node_status
 
-from handlers.SentinelCLI import SentinelCLI
-from handlers.Config import Config
-from handlers.SSH import SSH
-
 app = Flask(__name__)
-app.config ['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///servers.sqlite3'
+app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///servers.sqlite3"
 
 db = SQLAlchemy(app)
 
+
 class Servers(db.Model):
-    _id = db.Column('_id', db.Integer, primary_key=True, autoincrement=True, nullable=False)
+    _id = db.Column(
+        "_id", db.Integer, primary_key=True, autoincrement=True, nullable=False
+    )
     host = db.Column(db.String, nullable=False)
     username = db.Column(db.String, nullable=False)
     password = db.Column(db.String)
@@ -40,7 +42,7 @@ class Servers(db.Model):
         self.port = port
 
     def as_dict(self):
-       return {c.name: getattr(self, c.name) for c in self.__table__.columns}
+        return {c.name: getattr(self, c.name) for c in self.__table__.columns}
 
 
 @app.route("/servers", methods=("GET", "POST"))
@@ -60,7 +62,7 @@ def get_servers():
     for s in servers:
         s.password = "*" * len(s.password)
 
-    return render_template('servers.html', servers=servers)
+    return render_template("servers.html", servers=servers)
 
 
 @app.route("/api/server/<server_id>/<container_id>", methods=["POST"])
@@ -73,7 +75,7 @@ def post_container(server_id: int, container_id: str):
             host=server.host,
             username=server.username,
             password=server.password,
-            port=server.port
+            port=server.port,
         )
         docker_client = ssh.docker(docker_api_version)
         if action == "stop":
@@ -87,6 +89,7 @@ def post_container(server_id: int, container_id: str):
         elif action == "update-node-conf":
             print("OK")
 
+
 @app.route("/server/<server_id>", methods=["GET", "POST"])
 def get_server(server_id: int):
     default_node_config = copy.deepcopy(Config.node)
@@ -96,16 +99,15 @@ def get_server(server_id: int):
         host=server.host,
         username=server.username,
         password=server.password,
-        port=server.port
+        port=server.port,
     )
 
     if request.method == "POST":
         json_request = request.get_json()
         action = json_request.get("action", None)
         if action == "create-node":
-
             docker_api_version = ssh.docker_api_version()
-            docker_installed = re.match('^[\.0-9]*$', docker_api_version) is not None
+            docker_installed = re.match("^[\.0-9]*$", docker_api_version) is not None
 
             if docker_installed is False:
                 return "Make sure to have installed docker on the server"
@@ -114,7 +116,9 @@ def get_server(server_id: int):
             docker_images = []
             for image in docker_client.images():
                 docker_images += image["RepoTags"]
-            docker_images = [img for img in docker_images if img.endswith("dvpn-node:latest")]
+            docker_images = [
+                img for img in docker_images if img.endswith("dvpn-node:latest")
+            ]
             if docker_images == []:
                 return "Unable to find a valid dvpn-node image"
 
@@ -130,15 +134,23 @@ def get_server(server_id: int):
             if default_node_config["keyring"]["backend"]["value"] == "test":
                 allow_empty.append("wallet_password")
 
-            validated = Config.validate_config(default_node_config, allow_empty=allow_empty)
+            validated = Config.validate_config(
+                default_node_config, allow_empty=allow_empty
+            )
             if type(validated) == bool and validated == True:
                 node_folder = default_node_config["extras"]["node_folder"]["value"]
                 # Keyring / wallet
                 keyring_backend = default_node_config["keyring"]["backend"]["value"]
-                keyring_password = default_node_config["extras"]["wallet_password"]["value"]
+                keyring_password = default_node_config["extras"]["wallet_password"][
+                    "value"
+                ]
                 # Networking
                 udp_port = default_node_config["extras"]["udp_port"]["value"]
-                tcp_port = default_node_config["node"]["listen_on"]["value"].split(":")[-1].strip()
+                tcp_port = (
+                    default_node_config["node"]["listen_on"]["value"]
+                    .split(":")[-1]
+                    .strip()
+                )
 
                 # - create a temp folder
                 # - handle keyring
@@ -152,25 +164,36 @@ def get_server(server_id: int):
                     sentinel_cli = SentinelCLI(tmpdirname)
 
                     keyring_keyname = default_node_config["keyring"]["from"]["value"]
-                    wallet_mnemonic = default_node_config["extras"]["wallet_mnemonic"]["value"]
+                    wallet_mnemonic = default_node_config["extras"]["wallet_mnemonic"][
+                        "value"
+                    ]
 
                     if wallet_mnemonic is None or len(wallet_mnemonic.split(" ")) < 23:
                         keyring_output = sentinel_cli.create_key(
                             key_name=keyring_keyname,
                             backend=keyring_backend,
-                            password=keyring_password
+                            password=keyring_password,
                         )
                     else:
                         keyring_output = sentinel_cli.recovery_key(
                             key_name=keyring_keyname,
                             mnemonic=wallet_mnemonic,
                             backend=keyring_backend,
-                            password=keyring_password
+                            password=keyring_password,
                         )
 
                     # Check if the wallet was created/recovered
                     keyring_backend_path = f"keyring-{keyring_backend}"
-                    if os.path.isfile(os.path.join(tmpdirname, keyring_backend_path, f"{keyring_keyname}.info")) is False:
+                    if (
+                        os.path.isfile(
+                            os.path.join(
+                                tmpdirname,
+                                keyring_backend_path,
+                                f"{keyring_keyname}.info",
+                            )
+                        )
+                        is False
+                    ):
                         return f"Something went wrong while create/recovery your wallet:\n{keyring_output}"
 
                     config_fpath = os.path.join(tmpdirname, "config.toml")
@@ -192,10 +215,18 @@ def get_server(server_id: int):
                         with open(service_fpath, "w") as f:
                             f.write(Config.tomlize(v2ray_config))
 
-                    ssh.exec_command(f"mkdir {node_folder} -p && mkdir {os.path.join(node_folder, keyring_backend_path)} -p")
-                    for file_path in os.listdir(os.path.join(tmpdirname, keyring_backend_path)):
-                        fpath = os.path.join(tmpdirname, keyring_backend_path, file_path)
-                        ssh.put_file(fpath, os.path.join(node_folder, keyring_backend_path))
+                    ssh.exec_command(
+                        f"mkdir {node_folder} -p && mkdir {os.path.join(node_folder, keyring_backend_path)} -p"
+                    )
+                    for file_path in os.listdir(
+                        os.path.join(tmpdirname, keyring_backend_path)
+                    ):
+                        fpath = os.path.join(
+                            tmpdirname, keyring_backend_path, file_path
+                        )
+                        ssh.put_file(
+                            fpath, os.path.join(node_folder, keyring_backend_path)
+                        )
                     ssh.put_file(config_fpath, node_folder)
                     ssh.put_file(service_fpath, node_folder)
 
@@ -207,21 +238,23 @@ def get_server(server_id: int):
                 moniker = default_node_config["node"]["moniker"]["value"]
                 docker_image = docker_images.pop(0)
                 # cap-add/drop, sysctl and /lib/modules volume probably are not needed for v2ray node
-                common_arguments = " ".join([
-                    f" --volume {node_folder}:/root/.sentinelnode"
-                    " --volume /lib/modules:/lib/modules"
-                    " --cap-drop ALL"
-                    " --cap-add NET_ADMIN"
-                    " --cap-add NET_BIND_SERVICE"
-                    " --cap-add NET_RAW"
-                    " --cap-add SYS_MODULE"
-                    " --sysctl net.ipv4.ip_forward=1"
-                    " --sysctl net.ipv6.conf.all.disable_ipv6=0"
-                    " --sysctl net.ipv6.conf.all.forwarding=1"
-                    " --sysctl net.ipv6.conf.default.forwarding=1"
-                    f" --publish {tcp_port}:{tcp_port}/tcp"
-                    f" --publish {udp_port}:{udp_port}/udp"
-                ])
+                common_arguments = " ".join(
+                    [
+                        f" --volume {node_folder}:/root/.sentinelnode"
+                        " --volume /lib/modules:/lib/modules"
+                        " --cap-drop ALL"
+                        " --cap-add NET_ADMIN"
+                        " --cap-add NET_BIND_SERVICE"
+                        " --cap-add NET_RAW"
+                        " --cap-add SYS_MODULE"
+                        " --sysctl net.ipv4.ip_forward=1"
+                        " --sysctl net.ipv6.conf.all.disable_ipv6=0"
+                        " --sysctl net.ipv6.conf.all.forwarding=1"
+                        " --sysctl net.ipv6.conf.default.forwarding=1"
+                        f" --publish {tcp_port}:{tcp_port}/tcp"
+                        f" --publish {udp_port}:{udp_port}/udp"
+                    ]
+                )
                 if keyring_backend == "test":
                     cmd = f"docker run -d --name dvpn-node-{moniker} --restart unless-stopped {common_arguments} {docker_image} process start"
                     ssh_stdin, ssh_stdout, ssh_stderr = ssh.exec_command(cmd)
@@ -232,38 +265,42 @@ def get_server(server_id: int):
 
                 print(cmd)
                 ssh_stdin, ssh_stdout, ssh_stderr = ssh.exec_command(cmd)
-                return "\n".join([
-                    keyring_output,
-                    ssh_stdout.read().decode("utf-8"),
-                    ssh_stderr.read().decode("utf-8")
-                ])
+                return "\n".join(
+                    [
+                        keyring_output,
+                        ssh_stdout.read().decode("utf-8"),
+                        ssh_stderr.read().decode("utf-8"),
+                    ]
+                )
 
             return validated
 
         elif action == "install":
             if ssh.put_file(os.path.join(os.getcwd(), "docker-install.sh")) is True:
-                ssh_stdin, ssh_stdout, ssh_stderr = ssh.sudo_exec_command("sudo bash ${HOME}/docker-install.sh")
+                ssh_stdin, ssh_stdout, ssh_stderr = ssh.sudo_exec_command(
+                    "sudo bash ${HOME}/docker-install.sh"
+                )
                 output = ssh_stdout.read().decode("utf-8")
                 output.replace(server.password, "*" * len(server.password))
                 ssh.close()
                 return output
         elif action == "pull":
-                cmd = "docker version --format '{{.Client.APIVersion}}'"
-                ssh_stdin, ssh_stdout, ssh_stderr = ssh.exec_command(cmd)
-                docker_api_version = ssh_stdout.read().decode("utf-8").strip()
-                docker_installed = re.match('^[\.0-9]*$', docker_api_version) is not None
-                if docker_installed is True:
-                    docker_client = ssh.docker(docker_api_version)
-                    # The tag to pull. If tag is None or empty, it is set to latest.
-                    repository = "ghcr.io/sentinel-official/dvpn-node"
-                    ssh.close()
-                    return docker_client.pull(repository, tag=None)
+            cmd = "docker version --format '{{.Client.APIVersion}}'"
+            ssh_stdin, ssh_stdout, ssh_stderr = ssh.exec_command(cmd)
+            docker_api_version = ssh_stdout.read().decode("utf-8").strip()
+            docker_installed = re.match("^[\.0-9]*$", docker_api_version) is not None
+            if docker_installed is True:
+                docker_client = ssh.docker(docker_api_version)
+                # The tag to pull. If tag is None or empty, it is set to latest.
+                repository = "ghcr.io/sentinel-official/dvpn-node"
+                ssh.close()
+                return docker_client.pull(repository, tag=None)
 
     ssh_stdin, ssh_stdout, ssh_stderr = ssh.sudo_exec_command("sudo whoami")
     sudoers_permission = ssh_stdout.readlines()[-1].strip() == "root"
 
     docker_api_version = ssh.docker_api_version()
-    docker_installed = re.match('^[\.0-9]*$', docker_api_version) is not None
+    docker_installed = re.match("^[\.0-9]*$", docker_api_version) is not None
 
     docker_images = []
     containers = []
@@ -274,22 +311,26 @@ def get_server(server_id: int):
                 docker_images += image["RepoTags"]
 
             containers = docker_client.containers()
-            containers = [c for c in containers if c['Image'].endswith('dvpn-node')]
+            containers = [c for c in containers if c["Image"].endswith("dvpn-node")]
             # For each container search for tcp port and then get node status
             # Estract al node config
             for container in containers:
-                container["Created"] = datetime.datetime.fromtimestamp(container["Created"]).strftime("%m/%d/%Y, %H:%M:%S")
+                container["Created"] = datetime.datetime.fromtimestamp(
+                    container["Created"]
+                ).strftime("%m/%d/%Y, %H:%M:%S")
                 container["NodeStatus"] = {}
                 if container["State"] == "running":
                     for port in container["Ports"]:
                         if port["IP"] == "0.0.0.0" and port["Type"] == "tcp":
                             try:
-                                container["NodeStatus"] = node_status(server.host, port["PublicPort"])
+                                container["NodeStatus"] = node_status(
+                                    server.host, port["PublicPort"]
+                                )
                                 break
                             except Exception as e:
                                 container["NodeStatus"] = {"exception": f"{e}"}
                 for mount in container["Mounts"]:
-                    if mount['Type'] == 'bind' and mount["Source"] != "/lib/modules":
+                    if mount["Type"] == "bind" and mount["Source"] != "/lib/modules":
                         node_config_fpath = os.path.join(mount["Source"], "config.toml")
                         node_config = ssh.read_file(node_config_fpath)
                         node_config = tomllib.loads(node_config)
@@ -297,9 +338,15 @@ def get_server(server_id: int):
 
                         node_config["extras"]["node_folder"]["value"] = mount["Source"]
                         service_type = node_config["node"]["type"]["value"]
-                        service_config = ssh.read_file(os.path.join(mount["Source"], f"{service_type}.toml"))
+                        service_config = ssh.read_file(
+                            os.path.join(mount["Source"], f"{service_type}.toml")
+                        )
                         service_config = tomllib.loads(service_config)
-                        node_config["extras"]["udp_port"]["value"] = service_config["vmess"]["listen_port"] if service_type == "v2ray" else service_config["listen_port"]
+                        node_config["extras"]["udp_port"]["value"] = (
+                            service_config["vmess"]["listen_port"]
+                            if service_type == "v2ray"
+                            else service_config["listen_port"]
+                        )
 
                         container["NodeConfig"] = node_config
                         break
@@ -309,22 +356,26 @@ def get_server(server_id: int):
 
     server.password = "*" * len(server.password)
     server_info = server.as_dict()
-    server_info.update({
-        "sudoers_permission": sudoers_permission,
-        "docker_installed": docker_installed,
-        "containers": containers,
-        "docker_images": docker_images
-    })
+    server_info.update(
+        {
+            "sudoers_permission": sudoers_permission,
+            "docker_installed": docker_installed,
+            "containers": containers,
+            "docker_images": docker_images,
+        }
+    )
 
     if containers == []:
         tcp_port = secrets.SystemRandom().randrange(1000, 9000)
         name = randomname.get_name()
         default_node_config["node"]["moniker"]["value"] = name
-        default_node_config["node"]["remote_url"]["value"] = f"https://{ssh.ifconfig()}:{tcp_port}"
+        default_node_config["node"]["remote_url"][
+            "value"
+        ] = f"https://{ssh.ifconfig()}:{tcp_port}"
         default_node_config["node"]["listen_on"]["value"] = f"0.0.0.0:{tcp_port}"
-        default_node_config["extras"]["udp_port"]["value"] = secrets.SystemRandom().randrange(
-            1000, 9000
-        )
+        default_node_config["extras"]["udp_port"][
+            "value"
+        ] = secrets.SystemRandom().randrange(1000, 9000)
         home_directory = ssh.get_home()
         default_node_config["extras"]["node_folder"]["value"] = os.path.join(
             home_directory, f".sentinel-node-{name}"
@@ -335,7 +386,7 @@ def get_server(server_id: int):
         "server.html",
         server_id=server_id,
         server_info=server_info,
-        default_node_config=default_node_config
+        default_node_config=default_node_config,
     )
 
 

@@ -1,8 +1,9 @@
-import paramiko
 import os
 
+import paramiko
 from docker import APIClient
 from docker.transport import SSHHTTPAdapter
+
 
 class SSHAdapterPassword(SSHHTTPAdapter):
     def __init__(self, base_url: str, password: str):
@@ -14,7 +15,8 @@ class SSHAdapterPassword(SSHHTTPAdapter):
             self.ssh_params["password"] = self.password
             self.ssh_client.connect(**self.ssh_params)
 
-class SSH():
+
+class SSH:
     def __init__(self, host: str, username: str, password: str = None, port: int = 22):
         self.host = host
         self.username = username
@@ -25,7 +27,9 @@ class SSH():
 
         self.client.load_system_host_keys()
         self.client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-        self.client.connect(host, username=username, password=password, port=port, look_for_keys=True)
+        self.client.connect(
+            host, username=username, password=password, port=port, look_for_keys=True
+        )
 
         """
         k = paramiko.RSAKey.from_private_key_file(keyfilename)
@@ -38,7 +42,7 @@ class SSH():
     def sudo_exec_command(self, cmd: str):
         ssh_stdin, ssh_stdout, ssh_stderr = self.client.exec_command(cmd, get_pty=True)
         if ssh_stdin.closed is False and self.password is not None and "sudo" in cmd:
-            ssh_stdin.write(self.password + '\n')
+            ssh_stdin.write(self.password + "\n")
             ssh_stdin.flush()
         return ssh_stdin, ssh_stdout, ssh_stderr
 
@@ -77,13 +81,21 @@ class SSH():
         return ssh_stdout.read().decode("utf-8").strip()
 
     def docker(self, docker_api_version: str):
-        client = APIClient(f'ssh://{self.host}:{self.port}', use_ssh_client=True, version=docker_api_version)
-        ssh_adapter = SSHAdapterPassword(f'ssh://{self.username}@{self.host}:{self.port}', password=self.password)
-        client.mount('http+docker://ssh', ssh_adapter)
+        client = APIClient(
+            f"ssh://{self.host}:{self.port}",
+            use_ssh_client=True,
+            version=docker_api_version,
+        )
+        ssh_adapter = SSHAdapterPassword(
+            f"ssh://{self.username}@{self.host}:{self.port}", password=self.password
+        )
+        client.mount("http+docker://ssh", ssh_adapter)
         if client.version(api_version=False)["ApiVersion"] == docker_api_version:
             return client
         return None
 
     def ifconfig(self):
-        ssh_stdin, ssh_stdout, ssh_stderr = self.client.exec_command("curl -X GET https://ifconfig.me")
+        ssh_stdin, ssh_stdout, ssh_stderr = self.client.exec_command(
+            "curl -X GET https://ifconfig.me"
+        )
         return ssh_stdout.read().decode("utf-8").strip()
