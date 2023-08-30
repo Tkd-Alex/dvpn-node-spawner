@@ -47,7 +47,6 @@
 <body class="d-flex flex-column min-vh-100">
     <div class="container">
         <h4 class="display-4 text-primary"><i class="bi bi-node-plus"></i> NodeSpawner</h4>
-
         <div
             class="modal fade"
             id="messageModal"
@@ -73,11 +72,33 @@
     <br><br>
 </body>
 
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.1/dist/js/bootstrap.bundle.min.js" integrity="sha384-HwwvtgBNo3bZJJLYd8oVXjrBZt8cqVSpeBNS5n7C8IVInixGAoxmnlMuBnhbgrkm" crossorigin="anonymous"></script>
-
-<footer class="footer mt-auto py-3 bg-light">
+<footer class="footer mt-auto py-3">
   <div class="container">
-    <span class="text-muted">Developer with <i class="bi bi-heart-fill text-danger"></i> by <a href="https://github.com/Tkd-Alex">Tkd-Alex</a></span>
+    <div class="row">
+      <div class="col d-flex flex-column justify-content-center">
+        <span class="text-muted">Developer with <i class="bi bi-heart-fill text-danger"></i> by <a href="https://github.com/Tkd-Alex">Tkd-Alex</a></span>
+      </div>
+      <div class="col-1">
+        <button id="toggleDarkMode" type="button" class="btn"><i class="bi bi-moon-fill"></i></button>
+      </div>
+    </div>
   </div>
 </footer>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.1/dist/js/bootstrap.bundle.min.js" integrity="sha384-HwwvtgBNo3bZJJLYd8oVXjrBZt8cqVSpeBNS5n7C8IVInixGAoxmnlMuBnhbgrkm" crossorigin="anonymous"></script>
+
+<script>
+  const toggleDarkMode = document.getElementById('toggleDarkMode')
+  toggleDarkMode.addEventListener('click',() =>{
+    if (document.documentElement.getAttribute('data-bs-theme') == 'dark') { 
+      document.documentElement.setAttribute('data-bs-theme','light')
+      toggleDarkMode.innerHTML = '<i class="bi bi-moon-fill"></i>'
+    }
+    else {
+      document.documentElement.setAttribute('data-bs-theme','dark')
+      toggleDarkMode.innerHTML = '<i class="bi bi-sun-fill"></i>'
+    }
+})
+</script>
+
 </html>
