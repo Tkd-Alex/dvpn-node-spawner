@@ -1,5 +1,5 @@
-import urllib.request
 import paramiko
+import os
 
 from docker import APIClient
 from docker.transport import SSHHTTPAdapter
@@ -8,6 +8,7 @@ class SSHAdapterPassword(SSHHTTPAdapter):
     def __init__(self, base_url: str, password: str):
         self.password = password
         super().__init__(base_url)
+
     def _connect(self):
         if self.ssh_client:
             self.ssh_params["password"] = self.password
@@ -15,10 +16,10 @@ class SSHAdapterPassword(SSHHTTPAdapter):
 
 class SSH():
     def __init__(self, host: str, username: str, password: str = None, port: int = 22):
-        self.host
-        self.username
-        self.password
-        self.port
+        self.host = host
+        self.username = username
+        self.password = password
+        self.port = port
 
         self.client = paramiko.SSHClient()
 
@@ -36,7 +37,7 @@ class SSH():
 
     def sudo_exec_command(self, cmd: str):
         ssh_stdin, ssh_stdout, ssh_stderr = self.client.exec_command(cmd, get_pty=True)
-        if ssh_stdin.closed is False and password is not None and "sudo" in cmd:
+        if ssh_stdin.closed is False and self.password is not None and "sudo" in cmd:
             ssh_stdin.write(self.password + '\n')
             ssh_stdin.flush()
         return ssh_stdin, ssh_stdout, ssh_stderr
@@ -55,11 +56,12 @@ class SSH():
         ssh_stdin, ssh_stdout, ssh_stderr = self.client.exec_command("echo ${HOME}")
         return ssh_stdout.read().decode("utf-8").strip()
 
-    def put_file(self, fpath: str) -> bool:
-        home_directory = ssh_get_home(ssh)
+    def put_file(self, fpath: str, remote: str = None) -> bool:
+        if remote is None:
+            remote = self.get_home()
         ftp = self.client.open_sftp()
         fname = os.path.basename(fpath)
-        ftp.put(fpath, os.path.join(home_directory, fname))
+        ftp.put(fpath, os.path.join(remote, fname))
         ftp.close()
         return True
 
@@ -69,6 +71,11 @@ class SSH():
     def exec_command(self, cmd: str):  # :)
         return self.client.exec_command(cmd)
 
+    def docker_api_version(self) -> str:
+        cmd = "docker version --format '{{.Client.APIVersion}}'"
+        ssh_stdin, ssh_stdout, ssh_stderr = self.client.exec_command(cmd)
+        return ssh_stdout.read().decode("utf-8").strip()
+
     def docker(self, docker_api_version: str):
         client = APIClient(f'ssh://{self.host}:{self.port}', use_ssh_client=True, version=docker_api_version)
         ssh_adapter = SSHAdapterPassword(f'ssh://{self.username}@{self.host}:{self.port}', password=self.password)
@@ -76,3 +83,7 @@ class SSH():
         if client.version(api_version=False)["ApiVersion"] == docker_api_version:
             return client
         return None
+
+    def ifconfig(self):
+        ssh_stdin, ssh_stdout, ssh_stderr = self.client.exec_command("curl -X GET https://ifconfig.me")
+        return ssh_stdout.read().decode("utf-8").strip()

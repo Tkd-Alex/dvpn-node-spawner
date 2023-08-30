@@ -5,7 +5,7 @@ import urllib.request
 from subprocess import run, PIPE
 
 class SentinelCLI():
-    def __init__(self):
+    def __init__(self, keyring_path: str = None):
         # Linux: Linux
         # Mac: Darwin
         # Windows: Windows
@@ -25,7 +25,8 @@ class SentinelCLI():
                 st = os.stat(client_path)
                 os.chmod(client_path, st.st_mode | stat.S_IEXEC)
 
-        keyring_path = os.path.join(os.getcwd(), "keyring")
+        if keyring_path is None:
+            keyring_path = os.path.join(os.getcwd(), "keyring")
         self.based_cmd = f'{client_path} keys add --home "{keyring_path}" '
 
     def create_key(self, key_name: str, backend: str = "test", password: str = None) -> str:
@@ -34,14 +35,14 @@ class SentinelCLI():
             p = run(cmd, shell=True, encoding='ascii', stdout=PIPE, stderr=PIPE)
             return f"{p.stdout} {p.stderr}"
         elif backend == "file":
-            if password is None:
-                return "Please provide a pasword to use for backend file"
+            if password is None or len(password) < 8:
+                return "Please provide a valid pasword to use for backend file"
             p = run(cmd, shell=True, encoding='ascii', stdout=PIPE, stderr=PIPE, input=f"{password}\n" * 2)
             return f"{p.stdout} {p.stderr}"
 
     def recovery_key(self, key_name: str, mnemonic: str, backend: str = "test", password: str = None) -> str:
-        if password is None and backend == "file":
-            return "Please provide a pasword to use for backend file"
+        if (password is None or len(password) < 8) and backend == "file":
+            return "Please provide a valid pasword to use for backend file"
         cmd = self.based_cmd + f"--keyring-backend {backend} {key_name} --recover"
         p = run(cmd, shell=True, encoding='ascii', stdout=PIPE, stderr=PIPE, input=f"{mnemonic}\n" if backend == "test" else (f"{mnemonic}\n" + f"{password}\n" * 2))
         return f"{p.stdout} {p.stderr}"

@@ -1,5 +1,13 @@
 import copy
 
+def handle_type(value):
+    if value in ["True", "False"]:
+        return value.lower()
+    elif value.isdigit():
+        return value
+    else:
+        return f'"{value}"'
+
 class Config:
     # https://trinityvalidator.com/docs/node/node-config
     # https://github.com/sentinel-official/dvpn-node/blob/development/types/config.go
@@ -41,7 +49,7 @@ class Config:
         },
         "keyring": {
             "backend": {
-                "value": "file",
+                "value": "test",
                 "description": "Underlying storage mechanism for keys",
             },
             "from": {
@@ -101,7 +109,7 @@ class Config:
                 "description": "UDP port used as listen_port for wireguard or v2ray",
             },
             "node_folder": {
-                "value": None,
+                "value": "",
                 "description": "Absolute path, where to save the node configuration",
             },
             "wallet_password": {
@@ -137,31 +145,35 @@ class Config:
         "private_key": {"value": None, "description": "Server private key"},
     }
 
-    def validate_config(node_config: dict) -> str | bool:
-        allowed_empty = ["ipv4_address"]
+    def validate_config(node_config: dict, allow_empty: list) -> str | bool:
         remote_url = node_config["node"]["remote_url"]["value"]
         listen_on = node_config["node"]["listen_on"]["value"]
-        if remote_url.split(":")[-1].strip() != listen_on.split(":")[-1].strip():
+
+        tcp_port_remote_url = remote_url.split(":")[-1].strip()
+        if tcp_port_remote_url.isdigit() is False:
+            return "TCP port on remote_url must be a number"
+
+        tcp_port_listen_on = listen_on.split(":")[-1].strip()
+        if tcp_port_listen_on.isdigit() is False:
+            return "TCP port on listen_on must be a number"
+
+        if tcp_port_remote_url != tcp_port_listen_on:
             return "TCP port must be equal"
 
         for group in node_config:
             for key in node_config[group]:
-                if key not in allowed_empty and node_config[group][key]["value"] == "":
+                if key not in allow_empty and node_config[group][key]["value"] in ["", None]:
                     return f"{group}.{key} cannot be empty"
+                elif node_config[group][key].get("options", None) is not None:
+                    options = [str(o) for o in node_config[group][key]["options"]]
+                    if node_config[group][key]["value"] not in options:
+                        return f"{group}.{key} value not allowed"
 
         if node_config["node"]["type"]["value"] == "v2ray":
             if node_config["handshake"]["enable"] is True:
                 return f"{group}.{key} cannot be True"
 
         return True
-
-    def __handle_type(value):
-        if value in ["True", "False"]:
-            return value.lower()
-        elif value.isdigit():
-            return value
-        else:
-            return f'"{value}"'
 
     def tomlize(node_config: dict) -> str:
         ignore = ["extras"]
@@ -174,9 +186,9 @@ class Config:
                     raw += f"\n[{group}]\n"
                     for key in keys:
                         raw += f"\n# {node_config[group][key]['description']}\n"
-                        raw += f"{key} = {__handle_type(node_config[group][key]['value'])}\n"
+                        raw += f"{key} = {handle_type(node_config[group][key]['value'])}\n"
                 else:
-                    raw += f"{group} = {__handle_type(node_config[group]['value'])}\n"
+                    raw += f"{group} = {handle_type(node_config[group]['value'])}\n"
         return raw
 
 

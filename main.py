@@ -7,6 +7,7 @@ import re
 import datetime
 import json
 import tomllib
+import tempfile
 from pywgkey import WgPsk
 
 from subprocess import Popen
@@ -14,8 +15,9 @@ from shutil import which
 from flask import Flask, render_template, request, jsonify
 from flask_sqlalchemy import SQLAlchemy
 
-from utils import ifconfig, parse_input, ssh_docker, node_status
+from utils import node_status
 
+from handlers.SentinelCLI import SentinelCLI
 from handlers.Config import Config
 from handlers.SSH import SSH
 
@@ -24,7 +26,7 @@ app.config ['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///servers.sqlite3'
 
 db = SQLAlchemy(app)
 
-class Server(db.Model):
+class Servers(db.Model):
     _id = db.Column('_id', db.Integer, primary_key=True, autoincrement=True, nullable=False)
     host = db.Column(db.String, nullable=False)
     username = db.Column(db.String, nullable=False)
@@ -67,7 +69,7 @@ def post_container(server_id: int, container_id: str):
     action = json_request.get("action", None)
     if action in ["stop", "remove_container", "restart", "start"]:
         server = db.session.get(Servers, server)
-        ssh = ssh_connection(
+        ssh = SSH(
             host=server.host,
             username=server.username,
             password=server.password,
@@ -82,11 +84,14 @@ def post_container(server_id: int, container_id: str):
             docker_client.restart(container_id)
         elif action == "start":
             docker_client.start(container_id)
-
+        elif action == "update-node-conf":
+            print("OK")
 
 @app.route("/server/<server_id>", methods=["GET", "POST"])
 def get_server(server_id: int):
+    default_node_config = copy.deepcopy(Config.node)
     server = db.session.get(Servers, server_id)
+    # if server is None:
     ssh = SSH(
         host=server.host,
         username=server.username,
@@ -97,31 +102,167 @@ def get_server(server_id: int):
     if request.method == "POST":
         json_request = request.get_json()
         action = json_request.get("action", None)
-        if action == "install":
+        if action == "create-node":
+
+            docker_api_version = ssh.docker_api_version()
+            docker_installed = re.match('^[\.0-9]*$', docker_api_version) is not None
+
+            if docker_installed is False:
+                return "Make sure to have installed docker on the server"
+
+            docker_client = ssh.docker(docker_api_version)
+            docker_images = []
+            for image in docker_client.images():
+                docker_images += image["RepoTags"]
+            docker_images = [img for img in docker_images if img.endswith("dvpn-node:latest")]
+            if docker_images == []:
+                return "Unable to find a valid dvpn-node image"
+
+            del json_request["action"]
+
+            for conf in json_request:
+                group, key = conf.split(".")
+                default_node_config[group][key]["value"] = json_request[conf]
+
+            # Allow wallet_mnemonic if is empty we are creating a new key
+            # If the keywing is test a wallet_password is not needed
+            allow_empty = ["ipv4_address", "wallet_mnemonic"]
+            if default_node_config["keyring"]["backend"]["value"] == "test":
+                allow_empty.append("wallet_password")
+
+            validated = Config.validate_config(default_node_config, allow_empty=allow_empty)
+            if type(validated) == bool and validated == True:
+                node_folder = default_node_config["extras"]["node_folder"]["value"]
+                # Keyring / wallet
+                keyring_backend = default_node_config["keyring"]["backend"]["value"]
+                keyring_password = default_node_config["extras"]["wallet_password"]["value"]
+                # Networking
+                udp_port = default_node_config["extras"]["udp_port"]["value"]
+                tcp_port = default_node_config["node"]["listen_on"]["value"].split(":")[-1].strip()
+
+                # - create a temp folder
+                # - handle keyring
+                # - create config.toml
+                # - create service.toml (wireguard / v2ray)
+                # - upload via sftp all do dedicated folder
+                # - delete the temp folder
+                # - start a new container
+
+                with tempfile.TemporaryDirectory() as tmpdirname:
+                    sentinel_cli = SentinelCLI(tmpdirname)
+
+                    keyring_keyname = default_node_config["keyring"]["from"]["value"]
+                    wallet_mnemonic = default_node_config["extras"]["wallet_mnemonic"]["value"]
+
+                    if wallet_mnemonic is None or len(wallet_mnemonic.split(" ")) < 23:
+                        keyring_output = sentinel_cli.create_key(
+                            key_name=keyring_keyname,
+                            backend=keyring_backend,
+                            password=keyring_password
+                        )
+                    else:
+                        keyring_output = sentinel_cli.recovery_key(
+                            key_name=keyring_keyname,
+                            mnemonic=wallet_mnemonic,
+                            backend=keyring_backend,
+                            password=keyring_password
+                        )
+
+                    # Check if the wallet was created/recovered
+                    keyring_backend_path = f"keyring-{keyring_backend}"
+                    if os.path.isfile(os.path.join(tmpdirname, keyring_backend_path, f"{keyring_keyname}.info")) is False:
+                        return f"Something went wrong while create/recovery your wallet:\n{keyring_output}"
+
+                    config_fpath = os.path.join(tmpdirname, "config.toml")
+                    with open(config_fpath, "w") as f:
+                        f.write(Config.tomlize(default_node_config))
+
+                    node_type = default_node_config["node"]["type"]["value"]
+                    if node_type == "wireguard":
+                        service_fpath = os.path.join(tmpdirname, "wireguard.toml")
+                        wireguard_config = copy.deepcopy(Config.wireguard)
+                        wireguard_config["listen_port"]["value"] = udp_port
+                        wireguard_config["private_key"]["value"] = WgPsk().key
+                        with open(service_fpath, "w") as f:
+                            f.write(Config.tomlize(wireguard_config))
+                    elif node_type == "v2ray":
+                        service_fpath = os.path.join(tmpdirname, "v2ray.toml")
+                        v2ray_config = copy.deepcopy(Config.v2ray)
+                        v2ray_config["vmess"]["listen_port"]["value"] = udp_port
+                        with open(service_fpath, "w") as f:
+                            f.write(Config.tomlize(v2ray_config))
+
+                    ssh.exec_command(f"mkdir {node_folder} -p && mkdir {os.path.join(node_folder, keyring_backend_path)} -p")
+                    for file_path in os.listdir(os.path.join(tmpdirname, keyring_backend_path)):
+                        fpath = os.path.join(tmpdirname, keyring_backend_path, file_path)
+                        ssh.put_file(fpath, os.path.join(node_folder, keyring_backend_path))
+                    ssh.put_file(config_fpath, node_folder)
+                    ssh.put_file(service_fpath, node_folder)
+
+                # We could use the docker-client, but we have too much configuration/parsing to done, specially for tty interactive
+                # https://docker-py.readthedocs.io/en/stable/api.html#module-docker.api.container
+
+                # Send directly ssh command
+                # Prepare command ...
+                moniker = default_node_config["node"]["moniker"]["value"]
+                docker_image = docker_images.pop(0)
+                # cap-add/drop, sysctl and /lib/modules volume probably are not needed for v2ray node
+                common_arguments = " ".join([
+                    f" --volume {node_folder}:/root/.sentinelnode"
+                    " --volume /lib/modules:/lib/modules"
+                    " --cap-drop ALL"
+                    " --cap-add NET_ADMIN"
+                    " --cap-add NET_BIND_SERVICE"
+                    " --cap-add NET_RAW"
+                    " --cap-add SYS_MODULE"
+                    " --sysctl net.ipv4.ip_forward=1"
+                    " --sysctl net.ipv6.conf.all.disable_ipv6=0"
+                    " --sysctl net.ipv6.conf.all.forwarding=1"
+                    " --sysctl net.ipv6.conf.default.forwarding=1"
+                    f" --publish {tcp_port}:{tcp_port}/tcp"
+                    f" --publish {udp_port}:{udp_port}/udp"
+                ])
+                if keyring_backend == "test":
+                    cmd = f"docker run -d --name dvpn-node-{moniker} --restart unless-stopped {common_arguments} {docker_image} process start"
+                    ssh_stdin, ssh_stdout, ssh_stderr = ssh.exec_command(cmd)
+                else:
+                    screen_name = f"dvpn-node-{moniker}"
+                    cmd = f"docker run --rm --name dvpn-node-{moniker} --interactive --tty {common_arguments} {docker_image} process start"
+                    cmd = f"screen -dmS {screen_name} '{cmd}' && sleep 10 && screen -S {screen_name} -X stuff '{keyring_password}\n'"
+
+                print(cmd)
+                ssh_stdin, ssh_stdout, ssh_stderr = ssh.exec_command(cmd)
+                return "\n".join([
+                    keyring_output,
+                    ssh_stdout.read().decode("utf-8"),
+                    ssh_stderr.read().decode("utf-8")
+                ])
+
+            return validated
+
+        elif action == "install":
             if ssh.put_file(os.path.join(os.getcwd(), "docker-install.sh")) is True:
-                ssh_stdin, ssh_stdout, ssh_stderr = ssh.sudo_exec_command("sudo bash ${HOME}/docker-install.sh", password=server.password)
+                ssh_stdin, ssh_stdout, ssh_stderr = ssh.sudo_exec_command("sudo bash ${HOME}/docker-install.sh")
                 output = ssh_stdout.read().decode("utf-8")
                 output.replace(server.password, "*" * len(server.password))
                 ssh.close()
                 return output
         elif action == "pull":
-            cmd = "docker version --format '{{.Client.APIVersion}}'"
-            ssh_stdin, ssh_stdout, ssh_stderr = ssh.exec_command(cmd)
-            docker_api_version = ssh_stdout.read().decode("utf-8").strip()
-            docker_installed = re.match('^[\.0-9]*$', docker_api_version) is not None
-            if docker_installed is True:
-                docker_client = ssh.docker(docker_api_version)
-                # The tag to pull. If tag is None or empty, it is set to latest.
-                repository = "ghcr.io/sentinel-official/dvpn-node"
-                ssh.close()
-                return docker_client.pull(repository, tag=None)
+                cmd = "docker version --format '{{.Client.APIVersion}}'"
+                ssh_stdin, ssh_stdout, ssh_stderr = ssh.exec_command(cmd)
+                docker_api_version = ssh_stdout.read().decode("utf-8").strip()
+                docker_installed = re.match('^[\.0-9]*$', docker_api_version) is not None
+                if docker_installed is True:
+                    docker_client = ssh.docker(docker_api_version)
+                    # The tag to pull. If tag is None or empty, it is set to latest.
+                    repository = "ghcr.io/sentinel-official/dvpn-node"
+                    ssh.close()
+                    return docker_client.pull(repository, tag=None)
 
-    ssh_stdin, ssh_stdout, ssh_stderr = ssh.sudo_exec_command("sudo whoami", password=server.password)
+    ssh_stdin, ssh_stdout, ssh_stderr = ssh.sudo_exec_command("sudo whoami")
     sudoers_permission = ssh_stdout.readlines()[-1].strip() == "root"
 
-    cmd = "docker version --format '{{.Client.APIVersion}}'"
-    ssh_stdin, ssh_stdout, ssh_stderr = ssh.exec_command(cmd)
-    docker_api_version = ssh_stdout.read().decode("utf-8").strip()
+    docker_api_version = ssh.docker_api_version()
     docker_installed = re.match('^[\.0-9]*$', docker_api_version) is not None
 
     docker_images = []
@@ -143,10 +284,10 @@ def get_server(server_id: int):
                     for port in container["Ports"]:
                         if port["IP"] == "0.0.0.0" and port["Type"] == "tcp":
                             try:
-                                container["NodeStatus"] = node_status(node.host, port["PublicPort"])
+                                container["NodeStatus"] = node_status(server.host, port["PublicPort"])
                                 break
                             except Exception as e:
-                                container["NodeStatus"] = {"exception": e}
+                                container["NodeStatus"] = {"exception": f"{e}"}
                 for mount in container["Mounts"]:
                     if mount['Type'] == 'bind' and mount["Source"] != "/lib/modules":
                         node_config_fpath = os.path.join(mount["Source"], "config.toml")
@@ -175,12 +316,11 @@ def get_server(server_id: int):
         "docker_images": docker_images
     })
 
-    default_node_config = copy.deepcopy(Config.node)
     if containers == []:
         tcp_port = secrets.SystemRandom().randrange(1000, 9000)
         name = randomname.get_name()
         default_node_config["node"]["moniker"]["value"] = name
-        default_node_config["node"]["remote_url"]["value"] = f"https://{ifconfig()}:{tcp_port}"
+        default_node_config["node"]["remote_url"]["value"] = f"https://{ssh.ifconfig()}:{tcp_port}"
         default_node_config["node"]["listen_on"]["value"] = f"0.0.0.0:{tcp_port}"
         default_node_config["extras"]["udp_port"]["value"] = secrets.SystemRandom().randrange(
             1000, 9000
@@ -191,7 +331,12 @@ def get_server(server_id: int):
         )
 
     ssh.close()
-    return render_template("server.html", server_id=server_id, server_info=server_info, default_node_config=default_node_config)
+    return render_template(
+        "server.html",
+        server_id=server_id,
+        server_info=server_info,
+        default_node_config=default_node_config
+    )
 
 
 @app.route("/create", methods=("GET", "POST"))
