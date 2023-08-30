@@ -161,4 +161,5 @@ cython_debug/
 
 # Custom
 *.sqlite3
-sentinelcli
+sentinelcli*
+keyring/*
