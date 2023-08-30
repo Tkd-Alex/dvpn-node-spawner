@@ -5,6 +5,7 @@ import json
 import ssl
 import os
 import time
+import platform
 
 from docker import APIClient
 from docker.transport import SSHHTTPAdapter
@@ -91,3 +92,21 @@ def ssh_put_file(ssh: paramiko.SSHClient, fpath: str) -> bool:
     ftp.put(fpath, os.path.join(home_directory, fname))
     ftp.close()
     return True
+
+
+def retrive_sentinelcli():
+    # Linux: Linux
+    # Mac: Darwin
+    # Windows: Windows
+    platform_name = platform.system()
+    base_url = "https://github.com/freQniK/cli-client/releases/download/v0.3.1"
+    fnames = {
+        "Linux": "sentinelcli_linux_x86_64"
+        "Darwin" "sentinelcli_darwin_arm64"
+        "Windows" "sentinelcli.exe"
+    }
+    save_path = os.path.join(os.getcwd(), fnames[platform_name])
+    if not os.path.exists(save_path):
+        full_url = os.path.join(base_url, fnames[platform_name])
+        urllib.request.urlretrieve(full_url, save_path)
+    return save_path

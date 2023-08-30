@@ -162,3 +162,4 @@ cython_debug/
 # Custom
 nodes/*
 nodes.sqlite3
+sentinelcli

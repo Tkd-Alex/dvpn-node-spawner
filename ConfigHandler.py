@@ -102,9 +102,17 @@ class ConfigHandler:
             },
             "node_folder": {
                 "value": None,
-                "description": "Absolute folder, where to save the node configuration",
+                "description": "Absolute path, where to save the node configuration",
             },
-        },
+            "wallet_password": {
+                "value": "",
+                "description": "Wallet password (only used for keyring = file)"
+            },
+            "wallet_mnemonic": {
+                "value": "",
+                "description": "Wallet bip mnemonic (leave empty for create a new wallet)"
+            }
+        }
     }
 
     v2ray = {
