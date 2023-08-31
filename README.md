@@ -27,18 +27,19 @@ Navigate to http://127.0.0.1:3845/servers and enjoy the dashboard 🥳
 - All the server info (host, username, password, port) are stored locally on a sqlite database.
 #### Requirements
 - **Docker**
-- **curl**, used for contact some ipinfo website and download bash script
+- **curl**, used for contact some ipinfo website and download .sh scripts
 - **tmux**, used for handle non-deamon container / especially useful when the keywring is setup as 'file' and we need to submit a wallet password
-- **openssl**, used for create SSL certificate that will be used to server on https the /status page
+- **openssl**, used for create SSL certificate that will be used to serve on https the /status page
 - **jq**, used for parsing the output of ipinfo website
-All the bash scripting for install the requirements are developed for ubuntu. If you plan to install the docker or requirements with the dashboard on arch-linux / centos or other disto please edit all the apt reference with you os package manager like pacman or yum.
+
+All the bash scripting for install the requirements are developed for Ubuntu. If you plan to install docker or the requirements with the dashboard on ArchLinux / Centos or other disto please edit all the _apt_ reference with you os package manager like _pacman_ or _yum_.
 #### Management
 The dashboard was developed on free time and it may not be perfect;
 - After some actions like start/restart stop and so on the page must be refreshed.
 - The logs are not live but will be refreshed each time you click on "Node logs" tab
 - Most of the default configuration are take from [Trinity dVPN Guides](https://trinityvalidator.com/docs/sentinelguides/node/node-config), like `gigabyte_prices` and `hourly_prices` values. The default configuration is stored on [handlers/Config.py](handlers/Config.py) file and in case of update by [dvpn-node](https://github.com/sentinel-official/dvpn-node), the file could need updates.
-- Configuration like udp port / tcp port / moniker and generated randomly.
-- With the dashboard you can pull the latest image from [official dvpn-node image](https://github.com/sentinel-official/dvpn-node/pkgs/container/dvpn-node). Btw, if you have already by your self the image the dashboard will handle only images that ends with `dvpn-node` or `dvpn-node:latest`. Images like: `sentine-dvpn-node` are also valid.
+- Configuration like udp port / tcp port / moniker are generated randomly.
+- With the dashboard you can pull the latest image from [official dvpn-node image](https://github.com/sentinel-official/dvpn-node/pkgs/container/dvpn-node). Btw, if you have already built by your self the image, the dashboard will handle only images that ends with `dvpn-node` or `dvpn-node:latest`. Images like: `sentine-dvpn-node` are also valid.
 #### Keyring
 In order to handle the keyring will be use the [Sentinel CLI client](https://github.com/sentinel-official/cli-client).
 Based on your OS, the script will automatically download the client from [freQniK release v0.3.1](https://github.com/freQniK/cli-client/releases/download/v0.3.1) (after the hub upgrade we don't have an official one). The client will work on /tmp folder, once the wallet is created / recovered the files will be uploaded on the server and the /tmp folder will be deleted.
@@ -47,7 +48,7 @@ Based on your OS, the script will automatically download the client from [freQni
 - The keyring with backend as 'file' could have some issue linked to the password input. For example if you restart a container trougth the dashboard, probably the node will never start because is waiting for a input.
 - Currently, if you save a node configuration, the container must be manually restarted (can be done via dashboard) - We could evaluate an auto restart.
 - The [firewall](https://trinityvalidator.com/docs/sentinelguides/node/node-config#enable-firewall-ports) part is currently not managed, I found a lot of VPS/Hosting services without the ufw package or firwall rules - so, for the moment is not managed by the dasbhoard.
-- My skills on frontend side are very limited, forgive me about the simple bootstrap page (btw, dark mode and light mode are managed 😄)
+- My skills on frontend side are very limited, forgive me about the simple bootstrap page (btw, dark mode 🌔 and light mode 🌞 are implemented)
 
 ### Screenshot
 ![Server list](assets/servers-dark.png)
