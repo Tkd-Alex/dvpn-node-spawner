@@ -81,7 +81,7 @@ def get_servers():
 def post_container(server_id: int, container_id: str):
     json_request = request.get_json()
     action = json_request.get("action", None)
-    if action in ["stop", "remove", "restart", "start", "logs"]:
+    if action in ["stop", "remove", "restart", "start", "logs", "update-node-conf"]:
         server = db.session.get(Servers, server_id)
         ssh = SSH(
             host=server.host,
@@ -101,11 +101,40 @@ def post_container(server_id: int, container_id: str):
                 html = conv.convert(logs.decode("utf-8"))
                 return html
             elif action == "update-node-conf":
-                print("OK")
+                default_node_config = copy.deepcopy(Config.node)
+                # Duplicate code under get_server method() -> POST [create-node] ...
+                # START DUPLICATE BLOCK #
+                del json_request["action"]
+                for conf in json_request:
+                    group, key = conf.split(".")
+                    default_node_config[group][key]["value"] = json_request[conf]
+
+                # Allow wallet_mnemonic if is empty we are creating a new key
+                # If the keywing is test a wallet_password is not needed
+                allow_empty = ["ipv4_address", "wallet_mnemonic"]
+                if Config.val(default_node_config, "keyring", "backend") == "test":
+                    allow_empty.append("wallet_password")
+
+                validated = Config.validate_config(
+                    default_node_config, allow_empty=allow_empty
+                )
+                # END DUPLICATE BLOCK #
+                if type(validated) == bool and validated == True:
+                    with tempfile.TemporaryDirectory() as tmpdirname:
+                        config_fpath = os.path.join(tmpdirname, "config.toml")
+                        with open(config_fpath, "w") as f:
+                            f.write(Config.tomlize(default_node_config))
+                        node_folder = Config.val(default_node_config, "extras", "node_folder")
+                        ssh.put_file(config_fpath, node_folder)
+                    # Probably we should implement auto reboot here.
+                    return "Configuration updated, don't forget to reboot your node"
+                return validated
             elif action == "stop":
                 docker_client.stop(container_id)
             elif action == "remove":
                 docker_client.remove_container(container_id)
+            # TODO: in order to start or restart the container we should check if we are under screen
+            # ... and obw if the keyring is test or file, in that case we need a passphrase
             elif action == "restart":
                 docker_client.restart(container_id)
             elif action == "start":
@@ -166,7 +195,6 @@ def get_server(server_id: int):
                 return "Unable to find a valid dvpn-node image"
 
             del json_request["action"]
-
             for conf in json_request:
                 group, key = conf.split(".")
                 default_node_config[group][key]["value"] = json_request[conf]
