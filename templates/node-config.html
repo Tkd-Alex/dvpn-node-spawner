@@ -12,10 +12,9 @@
                         {{ 'disabled' if container_id is defined and key in readonly_values else '' }}
                         id="{{key}}-id"
                         placeholder="{{key}}"
-                        value="{{config[header][key].value}}"
                     >
                         {% for option in config[header][key]['options'] %}
-                        <option value="{{option}}">{{option}}</option>
+                        <option {{ 'selected' if config[header][key].value == option else '' }} value="{{option}}">{{option}}</option>
                         {% endfor %}
                     </select>
                     {% elif config[header][key].value is number %}

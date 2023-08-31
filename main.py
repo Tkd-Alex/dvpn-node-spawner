@@ -51,7 +51,7 @@ def catch_all(path):
 
 
 @app.route("/servers", methods=["GET", "POST", "DELETE"])
-def get_servers():
+def handle_servers():
     if request.method == "POST":
         form = request.form.to_dict()
         server = Servers(
@@ -82,7 +82,7 @@ def post_container(server_id: int, container_id: str):
             password=server.password,
             port=server.port,
         )
-        docker_api_version = ssh.docker_api_version()
+        docker_api_version = ssh.docker_api_version().strip()
         docker_client = ssh.docker(docker_api_version)
 
         containers = docker_client.containers(all=True)
@@ -177,7 +177,7 @@ def delete_server(server_id: int):
 
 
 @app.route("/server/<server_id>", methods=["GET", "POST"])
-def get_server(server_id: int):
+def handle_server(server_id: int):
     server = db.session.get(Servers, server_id)
     # if server is None:
     ssh = SSH(
@@ -191,8 +191,11 @@ def get_server(server_id: int):
         json_request = request.get_json()
         action = json_request.get("action", None)
         if action == "create-node":
-            docker_api_version = ssh.docker_api_version()
-            docker_installed = re.match(r"^[\.0-9]*$", docker_api_version) is not None
+            docker_api_version = ssh.docker_api_version().strip()
+            docker_installed = (
+                docker_api_version != ""
+                and re.match(r"^[\.0-9]*$", docker_api_version) is not None
+            )
 
             if docker_installed is False:
                 ssh.close()
@@ -406,7 +409,10 @@ def get_server(server_id: int):
             cmd = "docker version --format '{{.Client.APIVersion}}'"
             ssh_stdin, ssh_stdout, ssh_stderr = ssh.exec_command(cmd)
             docker_api_version = ssh_stdout.read().decode("utf-8").strip()
-            docker_installed = re.match(r"^[\.0-9]*$", docker_api_version) is not None
+            docker_installed = (
+                docker_api_version != ""
+                and re.match(r"^[\.0-9]*$", docker_api_version) is not None
+            )
             if docker_installed is True:
                 docker_client = ssh.docker(docker_api_version)
                 # The tag to pull. If tag is None or empty, it is set to latest.
@@ -420,8 +426,11 @@ def get_server(server_id: int):
     ssh_stdin, ssh_stdout, ssh_stderr = ssh.sudo_exec_command("sudo whoami")
     sudoers_permission = ssh_stdout.readlines()[-1].strip() == "root"
 
-    docker_api_version = ssh.docker_api_version()
-    docker_installed = re.match(r"^[\.0-9]*$", docker_api_version) is not None
+    docker_api_version = ssh.docker_api_version().strip()
+    docker_installed = (
+        docker_api_version != ""
+        and re.match(r"^[\.0-9]*$", docker_api_version) is not None
+    )
 
     requirements = {}
     cmd = " && ".join(
@@ -531,4 +540,4 @@ def get_server(server_id: int):
 if __name__ == "__main__":
     with app.app_context():
         db.create_all()
-        app.run(host="127.0.0.1", port=3845, debug=False)
+        app.run(host="127.0.0.1", port=3845, debug=True)
