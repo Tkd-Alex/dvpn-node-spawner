@@ -5,12 +5,12 @@
     <table class="table">
         <thead>
             <tr>
-            <th scope="col">#</th>
+            <th scope="col-1">#</th>
             <th scope="col">Host</th>
             <th scope="col">Username</th>
             <th scope="col">Password</th>
-            <th scope="col">Port</th>
-            <th scope="col"></th>
+            <th scope="col-2">Port</th>
+            <th scope="col-1"></th>
             </tr>
         </thead>
         <tbody>
@@ -31,6 +31,7 @@
                         <i class="bi bi-arrow-up-right-square"></i>
                     </button>
                     <button
+                        onclick="deleteServer('{{ server._id }}')"
                         data-toggle="tooltip"
                         data-placement="top"
                         title="Delete"
@@ -42,14 +43,47 @@
             {% endfor %}
         </tbody>
     </table>
+
     <br>
+
     <form method="post">
         <div class="row">
             <div class="col-3"><input type="text" class="form-control" name="host" placeholder="SSH Host"></div>
             <div class="col-3"><input type="text" class="form-control" name="username" placeholder="SSH Username"></div>
             <div class="col-3"><input type="password" class="form-control" name="password" placeholder="SSH Password"></div>
             <div class="col-2"><input type="number" class="form-control" name="port" value="22" placeholder="SSH Port"></div>
-            <div class="col-1"><button type="submit" class="btn btn-primary"><i class="bi bi-save"></i> Save</button></div>
+            <div class="col-1 text-center">
+                <button
+                    type="submit"
+                    data-toggle="tooltip"
+                    data-placement="top"
+                    title="Add"
+                    class="btn btn-primary">
+                    <i class="bi bi-plus-square-fill"></i>
+                </button>
+            </div>
         </div>
     </form>
+
+    <script>
+        function deleteServer(server_id) {
+            $("#spinner").removeAttr('hidden');
+            fetch(`/api/server/${server_id}`, {
+                headers: {
+                    'Accept': 'application/json',
+                    'Content-Type': 'application/json'
+                },
+                method: "DELETE",
+            })
+            .then((response) => response.text())
+            .then((data)=> {
+                console.log(data);
+                $("#spinner").attr("hidden", true);
+
+                $("#messageModalBody").html(data)
+                new bootstrap.Modal($("#messageModal"), {}).show();
+            })
+            .catch((error) => { console.log(error); $("#spinner").attr("hidden", true); })
+        }
+    </script>
 {% endblock %}

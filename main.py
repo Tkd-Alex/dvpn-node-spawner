@@ -12,7 +12,7 @@ from subprocess import Popen
 
 import docker
 import randomname
-from flask import Flask, jsonify, render_template, request
+from flask import Flask, jsonify, render_template, request, redirect
 from flask_sqlalchemy import SQLAlchemy
 from pywgkey import WgPsk
 
@@ -52,7 +52,12 @@ class Servers(db.Model):
         return {c.name: getattr(self, c.name) for c in self.__table__.columns}
 
 
-@app.route("/servers", methods=("GET", "POST"))
+@app.route('/', defaults={'path': ''})
+@app.route('/<path:path>')
+def catch_all(path):
+    return redirect("/servers", code=302)
+
+@app.route("/servers", methods=["GET", "POST", "DELETE"])
 def get_servers():
     if request.method == "POST":
         form = request.form.to_dict()
@@ -112,6 +117,18 @@ def post_container(server_id: int, container_id: str):
             ssh.close()
             return f"The container <b>{container_id[:12]}</b> was not found on the server"
     return "Action not allowed"
+
+
+@app.route("/api/server/<server_id>", methods=["DELETE"])
+def delete_server(server_id: int):
+    if request.method == "DELETE":
+        server = db.session.get(Servers, server_id)
+        if server is not None:
+            db.session.delete(server)
+            db.session.commit()
+            return "Server delete succeffully"
+        return "Server not found"
+    return "Method not allowed"
 
 
 @app.route("/server/<server_id>", methods=["GET", "POST"])
@@ -331,7 +348,7 @@ def get_server(server_id: int):
             print(cmd)
             ssh_stdin, ssh_stdout, ssh_stderr = ssh.sudo_exec_command(cmd)
             output = ssh_stdout.read().decode("utf-8")
-            output.replace(server.password, "*" * len(server.password))
+            output = output.replace(server.password, "*" * len(server.password))
             ssh.close()
             return html_output(output)
 
