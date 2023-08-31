@@ -1,6 +1,6 @@
 import json
-import ssl
 import re
+import ssl
 import urllib.request
 
 
@@ -15,8 +15,8 @@ def node_status(host: str, port: int) -> dict:
 
 
 def html_output(text: str) -> str:
-    text = re.sub(r'\n\s*\n', '\n\n', text)
-    text = re.sub(' +', ' ', text)
+    text = re.sub(r"\n\s*\n", "\n\n", text)
+    text = re.sub(" +", " ", text)
     text = text.strip()
     text = text.replace("\n", "<br />")
     return text

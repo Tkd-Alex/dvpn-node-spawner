@@ -6,32 +6,28 @@ import re
 import secrets
 import tempfile
 import tomllib
-from ansi2html import Ansi2HTMLConverter
 from shutil import which
 from subprocess import Popen
 
 import docker
 import randomname
-from flask import Flask, jsonify, render_template, request, redirect
+from ansi2html import Ansi2HTMLConverter
+from flask import Flask, jsonify, redirect, render_template, request
 from flask_sqlalchemy import SQLAlchemy
 from pywgkey import WgPsk
 
 from handlers.Config import Config
 from handlers.SentinelCLI import SentinelCLI
 from handlers.SSH import SSH
-from utils import node_status, html_output
+from utils import html_output, node_status
 
 app = Flask(__name__)
 app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///servers.sqlite3"
 
 db = SQLAlchemy(app)
 
-server_requirements = {
-    "curl": False,
-    "screen": False,
-    "openssl": False,
-    "jq": False
-}
+server_requirements = {"curl": False, "screen": False, "openssl": False, "jq": False}
+
 
 class Servers(db.Model):
     _id = db.Column(
@@ -52,10 +48,11 @@ class Servers(db.Model):
         return {c.name: getattr(self, c.name) for c in self.__table__.columns}
 
 
-@app.route('/', defaults={'path': ''})
-@app.route('/<path:path>')
+@app.route("/", defaults={"path": ""})
+@app.route("/<path:path>")
 def catch_all(path):
     return redirect("/servers", code=302)
+
 
 @app.route("/servers", methods=["GET", "POST", "DELETE"])
 def get_servers():
@@ -102,7 +99,6 @@ def post_container(server_id: int, container_id: str):
                 html = conv.convert(logs.decode("utf-8"))
                 return html
             elif action == "update-node-conf":
-
                 container = containers.pop(0)
                 node_folder = None
                 current_node_config = None
@@ -112,7 +108,9 @@ def post_container(server_id: int, container_id: str):
                         node_config_fpath = os.path.join(mount["Source"], "config.toml")
                         current_node_config = ssh.read_file(node_config_fpath)
                         current_node_config = tomllib.loads(current_node_config)
-                        current_node_config = Config.node_toml2wellknow(current_node_config)
+                        current_node_config = Config.node_toml2wellknow(
+                            current_node_config
+                        )
                         break
 
                 if current_node_config is None:
@@ -120,9 +118,7 @@ def post_container(server_id: int, container_id: str):
                     return "Unable to find current node configuration on the server"
 
                 updated_node_config = Config.from_json(
-                    json_request,
-                    base_values=current_node_config,
-                    is_update=True
+                    json_request, base_values=current_node_config, is_update=True
                 )
 
                 # For the update we don't need the extras key
@@ -162,7 +158,9 @@ def post_container(server_id: int, container_id: str):
             return f"Action '{action}' was performed on container <b>{container_id[:12]}</b>"
         else:
             ssh.close()
-            return f"The container <b>{container_id[:12]}</b> was not found on the server"
+            return (
+                f"The container <b>{container_id[:12]}</b> was not found on the server"
+            )
     return "Action not allowed"
 
 
@@ -205,7 +203,9 @@ def get_server(server_id: int):
             for image in docker_client.images():
                 docker_images += image["RepoTags"]
             docker_images = [
-                img for img in docker_images if re.search(r'(dvpn-node:latest|dvpn-node)$', img) is not None
+                img
+                for img in docker_images
+                if re.search(r"(dvpn-node:latest|dvpn-node)$", img) is not None
             ]
             if docker_images == []:
                 ssh.close()
@@ -219,14 +219,14 @@ def get_server(server_id: int):
             if Config.val(new_node_config, "keyring", "backend") == "test":
                 allow_empty.append("wallet_password")
 
-            validated = Config.validate_config(
-                new_node_config, allow_empty=allow_empty
-            )
+            validated = Config.validate_config(new_node_config, allow_empty=allow_empty)
             if type(validated) == bool and validated == True:
                 node_folder = Config.val(new_node_config, "extras", "node_folder")
                 # Keyring / wallet
                 keyring_backend = Config.val(new_node_config, "keyring", "backend")
-                keyring_password = Config.val(new_node_config, "extras", "wallet_password")
+                keyring_password = Config.val(
+                    new_node_config, "extras", "wallet_password"
+                )
                 # Networking
                 udp_port = Config.val(new_node_config, "extras", "udp_port")
                 tcp_port = (
@@ -248,8 +248,12 @@ def get_server(server_id: int):
                     sentinel_cli = SentinelCLI(tmpdirname)
 
                     keyring_keyname = Config.val(new_node_config, "keyring", "from")
-                    wallet_mnemonic = Config.val(new_node_config, "extras", "wallet_mnemonic")
-                    valid_mnemonic = wallet_mnemonic is None or len(wallet_mnemonic.split(" ")) < 23
+                    wallet_mnemonic = Config.val(
+                        new_node_config, "extras", "wallet_mnemonic"
+                    )
+                    valid_mnemonic = (
+                        wallet_mnemonic is None or len(wallet_mnemonic.split(" ")) < 23
+                    )
 
                     if valid_mnemonic is True:
                         keyring_output = sentinel_cli.create_key(
@@ -278,7 +282,9 @@ def get_server(server_id: int):
                         is False
                     ):
                         ssh.close()
-                        return html_output(f"Something went wrong while create/recovery your wallet:\n{keyring_output}")
+                        return html_output(
+                            f"Something went wrong while create/recovery your wallet:\n{keyring_output}"
+                        )
 
                     config_fpath = os.path.join(tmpdirname, "config.toml")
                     with open(config_fpath, "w") as f:
@@ -318,7 +324,7 @@ def get_server(server_id: int):
                         "content=$( curl -X GET ipinfo.io )",
                         "country=$( jq -r  '.country' <<< \"${content}\" )",
                         "ip_address=$( jq -r  '.ip' <<< \"${content}\" )",
-                        f'openssl req -new -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 -x509 -sha256 -days 365 -nodes -out {node_folder}/tls.crt -keyout {node_folder}/tls.key -subj "/C=$country/O=NodeSpawner/OU=NodeSpawner/CN=$ip_address"'
+                        f'openssl req -new -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 -x509 -sha256 -days 365 -nodes -out {node_folder}/tls.crt -keyout {node_folder}/tls.key -subj "/C=$country/O=NodeSpawner/OU=NodeSpawner/CN=$ip_address"',
                     ]
                     ssh.exec_command(" && ".join(commands))
 
@@ -375,7 +381,7 @@ def get_server(server_id: int):
             commands = [
                 "sudo apt update",
                 # "sudo apt upgrade -y",
-                f"sudo apt install --yes {' '.join(list(server_requirements.keys()))}"
+                f"sudo apt install --yes {' '.join(list(server_requirements.keys()))}",
             ]
             cmd = " && ".join(commands)
             if action == "install":
@@ -416,7 +422,9 @@ def get_server(server_id: int):
     docker_installed = re.match("^[\.0-9]*$", docker_api_version) is not None
 
     requirements = {}
-    cmd = " && ".join([f"echo {r}=`which {r}`" for r in list(server_requirements.keys())])
+    cmd = " && ".join(
+        [f"echo {r}=`which {r}`" for r in list(server_requirements.keys())]
+    )
     ssh_stdin, ssh_stdout, ssh_stderr = ssh.sudo_exec_command(cmd)
     whiches = ssh_stdout.readlines()
     for which in whiches:
@@ -435,7 +443,11 @@ def get_server(server_id: int):
                 docker_images += image["RepoTags"]
 
             containers = docker_client.containers(all=True)
-            containers = [c for c in containers if re.search(r'(dvpn-node:latest|dvpn-node)$', c["Image"]) is not None]
+            containers = [
+                c
+                for c in containers
+                if re.search(r"(dvpn-node:latest|dvpn-node)$", c["Image"]) is not None
+            ]
             # For each container search for tcp port and then get node status
             # Estract al node config
             for container in containers:
@@ -510,7 +522,7 @@ def get_server(server_id: int):
         server_id=server_id,
         server_info=server_info,
         default_node_config=default_node_config,
-        readonly_values=Config.read_only
+        readonly_values=Config.read_only,
     )
 
 
