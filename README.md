@@ -17,9 +17,11 @@ pip install -r requirements.txt
 python main.py
 ```
 Easy right? Just install the python requirements and start the main.py file 😎
+Navigate to http://127.0.0.1:3845/servers and enjoy the dashboard 🥳
 
 ### Details
 #### SSH Connection
+- If you have a fresh VPS I suggest to perform at least one SSH connection manually before use the dashboard in order to know the RSA key fingerprint.
 - The ssh comunication can be done via password or via private-key auth (not already tested).
 - We need a sudoers permission in order to execute some commands (like docker/requirements install).
 - All the server info (host, username, password, port) are stored locally on a sqlite database.
