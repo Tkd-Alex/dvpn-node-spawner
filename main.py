@@ -25,6 +25,12 @@ app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///servers.sqlite3"
 
 db = SQLAlchemy(app)
 
+server_requirements = {
+    "curl": False,
+    "screen": False,
+    "openssl": False,
+    "jq": False
+}
 
 class Servers(db.Model):
     _id = db.Column(
@@ -163,6 +169,7 @@ def get_server(server_id: int):
                 # - create service.toml (wireguard / v2ray)
                 # - upload via sftp all do dedicated folder
                 # - delete the temp folder
+                # - create a ssl certificate
                 # - start a new container
 
                 with tempfile.TemporaryDirectory() as tmpdirname:
@@ -219,8 +226,6 @@ def get_server(server_id: int):
                         with open(service_fpath, "w") as f:
                             f.write(Config.tomlize(v2ray_config))
 
-                    # curl ipinfo.io | jq '.country'
-
                     ssh.exec_command(
                         f"mkdir {node_folder} -p && mkdir {os.path.join(node_folder, keyring_backend_path)} -p"
                     )
@@ -235,6 +240,14 @@ def get_server(server_id: int):
                         )
                     ssh.put_file(config_fpath, node_folder)
                     ssh.put_file(service_fpath, node_folder)
+
+                    commands = [
+                        "content=$( curl -X GET ipinfo.io )",
+                        "country=$( jq -r  '.country' <<< \"${content}\" )",
+                        "ip_address=$( jq -r  '.ip' <<< \"${content}\" )",
+                        f'openssl req -new -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 -x509 -sha256 -days 365 -nodes -out {node_folder}/tls.crt -keyout {node_folder}/tls.key -subj "/C=$country/O=NodeSpawner/OU=NodeSpawner/CN=$ip_address"'
+                    ]
+                    ssh.exec_command(" && ".join(commands))
 
                 # We could use the docker-client, but we have too much configuration/parsing to done, specially for tty interactive
                 # https://docker-py.readthedocs.io/en/stable/api.html#module-docker.api.container
@@ -284,15 +297,29 @@ def get_server(server_id: int):
 
             return validated
 
-        elif action == "install":
-            if ssh.put_file(os.path.join(os.getcwd(), "docker-install.sh")) is True:
-                ssh_stdin, ssh_stdout, ssh_stderr = ssh.sudo_exec_command(
-                    "sudo bash ${HOME}/docker-install.sh"
-                )
-                output = ssh_stdout.read().decode("utf-8")
-                output.replace(server.password, "*" * len(server.password))
-                ssh.close()
-                return output
+        elif action in ["install", "requirements"]:
+            commands = [
+                "sudo apt update",
+                # "sudo apt upgrade -y",
+                f"sudo apt install --yes {' '.join(list(server_requirements.keys()))}"
+            ]
+            cmd = " && ".join(commands)
+            if action == "install":
+                commands = [
+                    "curl -fsSL get.docker.com -o ${HOME}/get-docker.sh",
+                    "sudo sh ${HOME}/get-docker.sh",
+                    "sudo systemctl enable --now docker",
+                    "sudo usermod -aG docker $(whoami)",
+                ]
+                cmd += " && " + " && ".join(commands)
+
+            print(cmd)
+            ssh_stdin, ssh_stdout, ssh_stderr = ssh.sudo_exec_command(cmd)
+            output = ssh_stdout.read().decode("utf-8")
+            output.replace(server.password, "*" * len(server.password))
+            ssh.close()
+            return html_output(output)
+
         elif action == "pull":
             cmd = "docker version --format '{{.Client.APIVersion}}'"
             ssh_stdin, ssh_stdout, ssh_stderr = ssh.exec_command(cmd)
@@ -303,13 +330,25 @@ def get_server(server_id: int):
                 # The tag to pull. If tag is None or empty, it is set to latest.
                 repository = "ghcr.io/sentinel-official/dvpn-node"
                 ssh.close()
-                return docker_client.pull(repository, tag=None)
+                output = docker_client.pull(repository, tag=None)
+                return html_output(output)
 
     ssh_stdin, ssh_stdout, ssh_stderr = ssh.sudo_exec_command("sudo whoami")
     sudoers_permission = ssh_stdout.readlines()[-1].strip() == "root"
 
     docker_api_version = ssh.docker_api_version()
     docker_installed = re.match("^[\.0-9]*$", docker_api_version) is not None
+
+    requirements = {}
+    cmd = " && ".join([f"echo {r}=`which {r}`" for r in list(server_requirements.keys())])
+    ssh_stdin, ssh_stdout, ssh_stderr = ssh.sudo_exec_command(cmd)
+    whiches = ssh_stdout.readlines()
+    for which in whiches:
+        requirement, path = which.strip().split("=")
+        requirement = requirement.strip()
+        path = path.strip()
+        if requirement in server_requirements:
+            requirements[requirement] = path != "" and path.endswith(requirement)
 
     docker_images = []
     containers = []
@@ -368,6 +407,7 @@ def get_server(server_id: int):
     server_info.update(
         {
             "sudoers_permission": sudoers_permission,
+            "requirements": requirements,
             "docker_installed": docker_installed,
             "containers": containers,
             "docker_images": docker_images,
