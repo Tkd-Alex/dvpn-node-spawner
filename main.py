@@ -1,18 +1,14 @@
 import copy
 import datetime
-import json
 import os
 import re
 import secrets
 import tempfile
 import tomllib
-from shutil import which
-from subprocess import Popen
 
-import docker
 import randomname
 from ansi2html import Ansi2HTMLConverter
-from flask import Flask, jsonify, redirect, render_template, request
+from flask import Flask, redirect, render_template, request
 from flask_sqlalchemy import SQLAlchemy
 from pywgkey import WgPsk
 
@@ -126,7 +122,7 @@ def post_container(server_id: int, container_id: str):
                 validated = Config.validate_config(
                     updated_node_config, allow_empty=allow_empty
                 )
-                if type(validated) == bool and validated == True:
+                if isinstance(validated, bool) and validated is True:
                     with tempfile.TemporaryDirectory() as tmpdirname:
                         config_fpath = os.path.join(tmpdirname, "config.toml")
                         with open(config_fpath, "w") as f:
@@ -196,7 +192,7 @@ def get_server(server_id: int):
         action = json_request.get("action", None)
         if action == "create-node":
             docker_api_version = ssh.docker_api_version()
-            docker_installed = re.match("^[\.0-9]*$", docker_api_version) is not None
+            docker_installed = re.match(r"^[\.0-9]*$", docker_api_version) is not None
 
             if docker_installed is False:
                 ssh.close()
@@ -224,7 +220,7 @@ def get_server(server_id: int):
                 allow_empty.append("wallet_password")
 
             validated = Config.validate_config(new_node_config, allow_empty=allow_empty)
-            if type(validated) == bool and validated == True:
+            if isinstance(validated, bool) and validated is True:
                 node_folder = Config.val(new_node_config, "extras", "node_folder")
                 # Keyring / wallet
                 keyring_backend = Config.val(new_node_config, "keyring", "backend")
@@ -256,7 +252,8 @@ def get_server(server_id: int):
                         new_node_config, "extras", "wallet_mnemonic"
                     )
                     valid_mnemonic = (
-                        wallet_mnemonic is not None and len(wallet_mnemonic.split(" ")) > 23
+                        wallet_mnemonic is not None
+                        and len(wallet_mnemonic.split(" ")) > 23
                     )
 
                     if valid_mnemonic is False:
@@ -409,7 +406,7 @@ def get_server(server_id: int):
             cmd = "docker version --format '{{.Client.APIVersion}}'"
             ssh_stdin, ssh_stdout, ssh_stderr = ssh.exec_command(cmd)
             docker_api_version = ssh_stdout.read().decode("utf-8").strip()
-            docker_installed = re.match("^[\.0-9]*$", docker_api_version) is not None
+            docker_installed = re.match(r"^[\.0-9]*$", docker_api_version) is not None
             if docker_installed is True:
                 docker_client = ssh.docker(docker_api_version)
                 # The tag to pull. If tag is None or empty, it is set to latest.
@@ -424,7 +421,7 @@ def get_server(server_id: int):
     sudoers_permission = ssh_stdout.readlines()[-1].strip() == "root"
 
     docker_api_version = ssh.docker_api_version()
-    docker_installed = re.match("^[\.0-9]*$", docker_api_version) is not None
+    docker_installed = re.match(r"^[\.0-9]*$", docker_api_version) is not None
 
     requirements = {}
     cmd = " && ".join(
@@ -534,4 +531,4 @@ def get_server(server_id: int):
 if __name__ == "__main__":
     with app.app_context():
         db.create_all()
-        app.run(host="127.0.0.1", port=3845, debug=True)
+        app.run(host="127.0.0.1", port=3845, debug=False)
