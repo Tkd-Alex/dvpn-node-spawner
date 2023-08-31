@@ -6,6 +6,7 @@ import re
 import secrets
 import tempfile
 import tomllib
+from ansi2html import Ansi2HTMLConverter
 from shutil import which
 from subprocess import Popen
 
@@ -75,7 +76,7 @@ def get_servers():
 def post_container(server_id: int, container_id: str):
     json_request = request.get_json()
     action = json_request.get("action", None)
-    if action in ["stop", "remove", "restart", "start"]:
+    if action in ["stop", "remove", "restart", "start", "logs"]:
         server = db.session.get(Servers, server_id)
         ssh = SSH(
             host=server.host,
@@ -88,7 +89,15 @@ def post_container(server_id: int, container_id: str):
 
         containers = docker_client.containers(all=True)
         if container_id in [c["Id"] for c in containers]:
-            if action == "stop":
+            if action == "logs":
+                logs = docker_client.logs(container_id, tail=250)
+                ssh.close()
+                conv = Ansi2HTMLConverter()
+                html = conv.convert(logs.decode("utf-8"))
+                return html
+            elif action == "update-node-conf":
+                print("OK")
+            elif action == "stop":
                 docker_client.stop(container_id)
             elif action == "remove":
                 docker_client.remove_container(container_id)
@@ -96,11 +105,13 @@ def post_container(server_id: int, container_id: str):
                 docker_client.restart(container_id)
             elif action == "start":
                 docker_client.start(container_id)
-            elif action == "update-node-conf":
-                print("OK")
+
+            ssh.close()
             return f"Action '{action}' was performed on container <b>{container_id[:12]}</b>"
         else:
+            ssh.close()
             return f"The container <b>{container_id[:12]}</b> was not found on the server"
+    return "Action not allowed"
 
 
 @app.route("/server/<server_id>", methods=["GET", "POST"])
@@ -123,6 +134,7 @@ def get_server(server_id: int):
             docker_installed = re.match("^[\.0-9]*$", docker_api_version) is not None
 
             if docker_installed is False:
+                ssh.close()
                 return "Make sure to have installed docker on the server"
 
             docker_client = ssh.docker(docker_api_version)
@@ -133,6 +145,7 @@ def get_server(server_id: int):
                 img for img in docker_images if re.search(r'(dvpn-node:latest|dvpn-node)$', img) is not None
             ]
             if docker_images == []:
+                ssh.close()
                 return "Unable to find a valid dvpn-node image"
 
             del json_request["action"]
@@ -205,6 +218,7 @@ def get_server(server_id: int):
                         )
                         is False
                     ):
+                        ssh.close()
                         return html_output(f"Something went wrong while create/recovery your wallet:\n{keyring_output}")
 
                     config_fpath = os.path.join(tmpdirname, "config.toml")
@@ -293,6 +307,7 @@ def get_server(server_id: int):
                 output += f"\n{ssh_stdout.read().decode('utf-8')}"
                 output += f"\n{ssh_stderr.read().decode('utf-8')}"
 
+                ssh.close()
                 return html_output(output)
 
             return validated

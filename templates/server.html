@@ -119,11 +119,15 @@
         <ul class="nav nav-tabs" role="tablist">
             <li class="nav-item" role="presentation">
                 <button class="nav-link active" id="config-tab" data-bs-toggle="tab" data-bs-target="#config" type="button" role="tab" aria-controls="config" aria-selected="true">Node config</button>
-              </li>
+            </li>
             <li class="nav-item" role="presentation">
               <button class="nav-link" id="status-tab" data-bs-toggle="tab" data-bs-target="#status" type="button" role="tab" aria-controls="status" aria-selected="false">Node status</button>
             </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="logs-tab" data-bs-toggle="tab" data-bs-target="#logs" type="button" role="tab" aria-controls="logs" aria-selected="false" onclick="containerLogs('{{ server_info._id }}', '{{ container.Id }}')">Node logs</button>
+            </li>
         </ul>
+
         <div class="tab-content">
             <div class="tab-pane fade show active" id="config" role="tabpanel" aria-labelledby="config-tab">
                 <br>
@@ -134,8 +138,10 @@
             <div class="tab-pane fade" id="status" role="tabpanel" aria-labelledby="status-tab">
                 <pre id="json-renderer-{{ container.Id }}"></pre>
             </div>
+            <div class="tab-pane fade" id="logs" role="tabpanel" aria-labelledby="logs-tab">
+                <div style="max-height: 700px; overflow-y: auto; padding: 15px" id="node-logs-{{ container.Id }}"></div>
+            </div>
         </div>
-
 
         <script>
             var data = JSON.parse('{{ container["NodeStatus"] | tojson}}')
@@ -161,6 +167,27 @@
 
                 $("#messageModalBody").html(data)
                 new bootstrap.Modal($("#messageModal"), {}).show();
+            })
+            .catch((error) => { console.log(error); $("#spinner").attr("hidden", true); })
+        }
+
+        function containerLogs(server_id, container_id) {
+            $("#spinner").removeAttr('hidden');
+            fetch(`/api/server/${server_id}/${container_id}`, {
+                headers: {
+                    'Accept': 'application/json',
+                    'Content-Type': 'application/json'
+                },
+                method: "POST",
+                body: JSON.stringify({action: "logs"})
+            })
+            .then((response) => response.text())
+            .then((data)=> {
+                console.log(data);
+                $("#spinner").attr("hidden", true);
+                const logsDiv = $(`#node-logs-${container_id}`)
+                logsDiv.html(data)
+                logsDiv.scrollTop(logsDiv.prop("scrollHeight"));
             })
             .catch((error) => { console.log(error); $("#spinner").attr("hidden", true); })
         }
