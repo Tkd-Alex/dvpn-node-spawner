@@ -103,6 +103,7 @@
                                 <i class="bi bi-stop-circle"></i>
                             </button>
                         {% endif %}
+                        {% if container.State == 'exited' %}
                         <button
                             onclick="containerAction('{{ server_info._id }}', '{{ container.Id }}', 'remove')"
                             data-toggle="tooltip"
@@ -111,6 +112,7 @@
                             class="btn btn-sm">
                             <i class="bi bi-trash"></i>
                         </button>
+                        {% endif %}
                     </td>
                 </tr>
             </tbody>

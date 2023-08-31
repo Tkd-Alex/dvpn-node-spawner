@@ -53,6 +53,7 @@ class Config:
             "backend": {
                 "value": "test",
                 "description": "Underlying storage mechanism for keys",
+                "options": ["file", "test"],
             },
             "from": {
                 "value": "operator",

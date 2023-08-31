@@ -26,7 +26,7 @@ app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///servers.sqlite3"
 
 db = SQLAlchemy(app)
 
-server_requirements = {"curl": False, "screen": False, "openssl": False, "jq": False}
+server_requirements = {"curl": False, "tmux": False, "openssl": False, "jq": False}
 
 
 class Servers(db.Model):
@@ -143,16 +143,20 @@ def post_container(server_id: int, container_id: str):
                     # Probably we should implement auto reboot here.
                     return "Configuration updated, don't forget to reboot your node"
                 return validated
-            elif action == "stop":
-                docker_client.stop(container_id)
-            elif action == "remove":
-                docker_client.remove_container(container_id)
-            # TODO: in order to start or restart the container we should check if we are under screen
-            # ... and obw if the keyring is test or file, in that case we need a passphrase
-            elif action == "restart":
-                docker_client.restart(container_id)
-            elif action == "start":
-                docker_client.start(container_id)
+
+            try:
+                if action == "stop":
+                    docker_client.stop(container_id)
+                elif action == "remove":
+                    docker_client.remove_container(container_id)
+                # TODO: in order to start or restart the container we should check if we are under screen
+                # ... and obw if the keyring is test or file, in that case we need a passphrase
+                elif action == "restart":
+                    docker_client.restart(container_id)
+                elif action == "start":
+                    docker_client.start(container_id)
+            except Exception as e:
+                return html_output(e)
 
             ssh.close()
             return f"Action '{action}' was performed on container <b>{container_id[:12]}</b>"
@@ -252,10 +256,10 @@ def get_server(server_id: int):
                         new_node_config, "extras", "wallet_mnemonic"
                     )
                     valid_mnemonic = (
-                        wallet_mnemonic is None or len(wallet_mnemonic.split(" ")) < 23
+                        wallet_mnemonic is not None and len(wallet_mnemonic.split(" ")) > 23
                     )
 
-                    if valid_mnemonic is True:
+                    if valid_mnemonic is False:
                         keyring_output = sentinel_cli.create_key(
                             key_name=keyring_keyname,
                             backend=keyring_backend,
@@ -353,22 +357,23 @@ def get_server(server_id: int):
                         f" --publish {udp_port}:{udp_port}/udp"
                     ]
                 )
-                # {'run' if valid_mnemonic is False else 'create'}
-                # If we have a valid_mnemonic just create the container, probably the wallet miss at least 100dvpn
+                # If we have a valid_mnemonic run the container, else just create, the wallet must have at least 100dvpn
                 # Popup the alert ...
                 if keyring_backend == "test":
-                    cmd = f"docker {'run -d' if valid_mnemonic is False else 'create'} --name dvpn-node-{moniker} --restart unless-stopped {common_arguments} {docker_image} process start"
+                    cmd = f"docker {'run -d' if valid_mnemonic is True else 'create'} --name dvpn-node-{moniker} --restart unless-stopped {common_arguments} {docker_image} process start"
                 else:
-                    screen_name = f"dvpn-node-{moniker}"
+                    tmux_name = f"dvpn-node-{moniker}"
                     # --rm
-                    cmd = f"docker {'run' if valid_mnemonic is False else 'create'} --name dvpn-node-{moniker} --interactive --tty {common_arguments} {docker_image} process start"
-                    cmd = f"screen -dmS {screen_name} '{cmd}' && sleep 10 && screen -S {screen_name} -X stuff '{keyring_password}\n'"
+                    cmd = f"docker {'run' if valid_mnemonic is True else 'create'} --name dvpn-node-{moniker} --interactive --tty {common_arguments} {docker_image} process start"
+                    cmd = f"tmux new-session -d -s {tmux_name} '{cmd}' && sleep 10 && tmux send-keys -t {tmux_name}.0 '{keyring_password}' ENTER && tmux ls | grep '{tmux_name}'"
 
                 print(cmd)
                 ssh_stdin, ssh_stdout, ssh_stderr = ssh.exec_command(cmd)
 
                 output = f"<b>Keyring output:</b>\n{keyring_output}\n"
-                output += "\n\n<br /><b>Docker output:</b>"
+                if valid_mnemonic is False:
+                    output += "\n<br /><u>A new wallet was created, please charge at least 100dvpn and then start the container</u>\n"
+                output += "\n<br /><b>Docker output:</b>"
                 output += f"\n{ssh_stdout.read().decode('utf-8')}"
                 output += f"\n{ssh_stderr.read().decode('utf-8')}"
 

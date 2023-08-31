@@ -9,7 +9,7 @@
                     <select
                         class="form-control"
                         name="{{header}}.{{key}}"
-                        {{ 'disabled' if key in readonly_values else '' }}
+                        {{ 'disabled' if container_id is defined and key in readonly_values else '' }}
                         id="{{key}}-id"
                         placeholder="{{key}}"
                         value="{{config[header][key].value}}"
@@ -23,7 +23,7 @@
                             type="number"
                             class="form-control"
                             name="{{header}}.{{key}}"
-                            {{ 'disabled' if key in readonly_values else '' }}
+                            {{ 'disabled' if container_id is defined and key in readonly_values else '' }}
                             id="{{key}}-id"
                             placeholder="{{key}}"
                             value="{{config[header][key].value}}"
@@ -33,7 +33,7 @@
                             type="text"
                             class="form-control"
                             name="{{header}}.{{key}}"
-                            {{ 'disabled' if key in readonly_values else '' }}
+                            {{ 'disabled' if container_id is defined and key in readonly_values else '' }}
                             id="{{key}}-id"
                             placeholder="{{key}}"
                             value="{{config[header][key].value}}"
