@@ -63,21 +63,21 @@
                             onclick="containerAction('{{ server_info._id }}', '{{ container.Id }}', 'restart')"
                             data-toggle="tooltip"
                             data-placement="top"
-                            title="Reboot"
+                            title="Restart"
                             class="btn btn-sm">
                             <i class="bi bi-arrow-clockwise"></i>
                         </button>
-                        {% if container.State != 'running' %}
+                        {% if container.State != 'running' and container.State != 'restarting' %}
                             <button
                                 onclick="containerAction('{{ server_info._id }}', '{{ container.Id }}', 'start')"
                                 data-toggle="tooltip"
                                 data-placement="top"
-                                title="Play"
+                                title="Start"
                                 class="btn btn-sm">
                                 <i class="bi bi-play-circle"></i>
                             </button>
                         {% endif %}
-                        {% if container.State == 'running' %}
+                        {% if container.State == 'running' or container.State == 'restarting' %}
                             <button
                                 onclick="containerAction('{{ server_info._id }}', '{{ container.Id }}', 'stop')"
                                 data-toggle="tooltip"
@@ -88,10 +88,10 @@
                             </button>
                         {% endif %}
                         <button
-                            onclick="containerAction('{{ server_info._id }}', '{{ container.Id }}', 'remove_container')"
+                            onclick="containerAction('{{ server_info._id }}', '{{ container.Id }}', 'remove')"
                             data-toggle="tooltip"
                             data-placement="top"
-                            title="Delete"
+                            title="Remove"
                             class="btn btn-sm">
                             <i class="bi bi-trash"></i>
                         </button>
@@ -143,7 +143,7 @@
                 console.log(data);
                 $("#spinner").attr("hidden", true);
 
-                $("#messageModalBody").text(data)
+                $("#messageModalBody").html(data)
                 new bootstrap.Modal($("#messageModal"), {}).show();
             })
             .catch((error) => { console.log(error); $("#spinner").attr("hidden", true); })
@@ -164,7 +164,7 @@
                 console.log(data);
                 $("#spinner").attr("hidden", true);
 
-                $("#messageModalBody").text(data)
+                $("#messageModalBody").html(data)
                 new bootstrap.Modal($("#messageModal"), {}).show();
             })
             .catch((error) => { console.log(error); $("#spinner").attr("hidden", true); })

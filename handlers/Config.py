@@ -206,3 +206,6 @@ class Config:
                     if key in default_values[group]:
                         default_values[group][key]["value"] = node_config[group][key]
         return default_values
+
+    def val(config: dict, group: str, key: str):
+        return config[group][key]["value"]

@@ -18,7 +18,7 @@ from pywgkey import WgPsk
 from handlers.Config import Config
 from handlers.SentinelCLI import SentinelCLI
 from handlers.SSH import SSH
-from utils import node_status
+from utils import node_status, html_output
 
 app = Flask(__name__)
 app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///servers.sqlite3"
@@ -69,25 +69,32 @@ def get_servers():
 def post_container(server_id: int, container_id: str):
     json_request = request.get_json()
     action = json_request.get("action", None)
-    if action in ["stop", "remove_container", "restart", "start"]:
-        server = db.session.get(Servers, server)
+    if action in ["stop", "remove", "restart", "start"]:
+        server = db.session.get(Servers, server_id)
         ssh = SSH(
             host=server.host,
             username=server.username,
             password=server.password,
             port=server.port,
         )
+        docker_api_version = ssh.docker_api_version()
         docker_client = ssh.docker(docker_api_version)
-        if action == "stop":
-            docker_client.stop(container_id)
-        elif action == "remove_container":
-            docker_client.remove_container(container_id)
-        elif action == "restart":
-            docker_client.restart(container_id)
-        elif action == "start":
-            docker_client.start(container_id)
-        elif action == "update-node-conf":
-            print("OK")
+
+        containers = docker_client.containers(all=True)
+        if container_id in [c["Id"] for c in containers]:
+            if action == "stop":
+                docker_client.stop(container_id)
+            elif action == "remove":
+                docker_client.remove_container(container_id)
+            elif action == "restart":
+                docker_client.restart(container_id)
+            elif action == "start":
+                docker_client.start(container_id)
+            elif action == "update-node-conf":
+                print("OK")
+            return f"Action '{action}' was performed on container <b>{container_id[:12]}</b>"
+        else:
+            return f"The container <b>{container_id[:12]}</b> was not found on the server"
 
 
 @app.route("/server/<server_id>", methods=["GET", "POST"])
@@ -117,7 +124,7 @@ def get_server(server_id: int):
             for image in docker_client.images():
                 docker_images += image["RepoTags"]
             docker_images = [
-                img for img in docker_images if img.endswith("dvpn-node:latest")
+                img for img in docker_images if re.search(r'(dvpn-node:latest|dvpn-node)$', img) is not None
             ]
             if docker_images == []:
                 return "Unable to find a valid dvpn-node image"
@@ -131,23 +138,21 @@ def get_server(server_id: int):
             # Allow wallet_mnemonic if is empty we are creating a new key
             # If the keywing is test a wallet_password is not needed
             allow_empty = ["ipv4_address", "wallet_mnemonic"]
-            if default_node_config["keyring"]["backend"]["value"] == "test":
+            if Config.val(default_node_config, "keyring", "backend") == "test":
                 allow_empty.append("wallet_password")
 
             validated = Config.validate_config(
                 default_node_config, allow_empty=allow_empty
             )
             if type(validated) == bool and validated == True:
-                node_folder = default_node_config["extras"]["node_folder"]["value"]
+                node_folder = Config.val(default_node_config, "extras", "node_folder")
                 # Keyring / wallet
-                keyring_backend = default_node_config["keyring"]["backend"]["value"]
-                keyring_password = default_node_config["extras"]["wallet_password"][
-                    "value"
-                ]
+                keyring_backend = Config.val(default_node_config, "keyring", "backend")
+                keyring_password = Config.val(default_node_config, "extras", "wallet_password")
                 # Networking
-                udp_port = default_node_config["extras"]["udp_port"]["value"]
+                udp_port = Config.val(default_node_config, "extras", "udp_port")
                 tcp_port = (
-                    default_node_config["node"]["listen_on"]["value"]
+                    Config.val(default_node_config, "node", "listen_on")
                     .split(":")[-1]
                     .strip()
                 )
@@ -163,12 +168,11 @@ def get_server(server_id: int):
                 with tempfile.TemporaryDirectory() as tmpdirname:
                     sentinel_cli = SentinelCLI(tmpdirname)
 
-                    keyring_keyname = default_node_config["keyring"]["from"]["value"]
-                    wallet_mnemonic = default_node_config["extras"]["wallet_mnemonic"][
-                        "value"
-                    ]
+                    keyring_keyname = Config.val(default_node_config, "keyring", "from")
+                    wallet_mnemonic = Config.val(default_node_config, "extras", "wallet_mnemonic")
+                    valid_mnemonic = wallet_mnemonic is None or len(wallet_mnemonic.split(" ")) < 23
 
-                    if wallet_mnemonic is None or len(wallet_mnemonic.split(" ")) < 23:
+                    if valid_mnemonic is True:
                         keyring_output = sentinel_cli.create_key(
                             key_name=keyring_keyname,
                             backend=keyring_backend,
@@ -194,13 +198,13 @@ def get_server(server_id: int):
                         )
                         is False
                     ):
-                        return f"Something went wrong while create/recovery your wallet:\n{keyring_output}"
+                        return html_output(f"Something went wrong while create/recovery your wallet:\n{keyring_output}")
 
                     config_fpath = os.path.join(tmpdirname, "config.toml")
                     with open(config_fpath, "w") as f:
                         f.write(Config.tomlize(default_node_config))
 
-                    node_type = default_node_config["node"]["type"]["value"]
+                    node_type = Config.val(default_node_config, "node", "type")
                     if node_type == "wireguard":
                         service_fpath = os.path.join(tmpdirname, "wireguard.toml")
                         wireguard_config = copy.deepcopy(Config.wireguard)
@@ -214,6 +218,8 @@ def get_server(server_id: int):
                         v2ray_config["vmess"]["listen_port"]["value"] = udp_port
                         with open(service_fpath, "w") as f:
                             f.write(Config.tomlize(v2ray_config))
+
+                    # curl ipinfo.io | jq '.country'
 
                     ssh.exec_command(
                         f"mkdir {node_folder} -p && mkdir {os.path.join(node_folder, keyring_backend_path)} -p"
@@ -235,7 +241,7 @@ def get_server(server_id: int):
 
                 # Send directly ssh command
                 # Prepare command ...
-                moniker = default_node_config["node"]["moniker"]["value"]
+                moniker = Config.val(default_node_config, "node", "moniker")
                 docker_image = docker_images.pop(0)
                 # cap-add/drop, sysctl and /lib/modules volume probably are not needed for v2ray node
                 common_arguments = " ".join(
@@ -255,23 +261,26 @@ def get_server(server_id: int):
                         f" --publish {udp_port}:{udp_port}/udp"
                     ]
                 )
+                # {'run' if valid_mnemonic is False else 'create'}
+                # If we have a valid_mnemonic just create the container, probably the wallet miss at least 100dvpn
+                # Popup the alert ...
                 if keyring_backend == "test":
-                    cmd = f"docker run -d --name dvpn-node-{moniker} --restart unless-stopped {common_arguments} {docker_image} process start"
-                    ssh_stdin, ssh_stdout, ssh_stderr = ssh.exec_command(cmd)
+                    cmd = f"docker {'run -d' if valid_mnemonic is False else 'create'} --name dvpn-node-{moniker} --restart unless-stopped {common_arguments} {docker_image} process start"
                 else:
                     screen_name = f"dvpn-node-{moniker}"
-                    cmd = f"docker run --rm --name dvpn-node-{moniker} --interactive --tty {common_arguments} {docker_image} process start"
+                    # --rm
+                    cmd = f"docker {'run' if valid_mnemonic is False else 'create'} --name dvpn-node-{moniker} --interactive --tty {common_arguments} {docker_image} process start"
                     cmd = f"screen -dmS {screen_name} '{cmd}' && sleep 10 && screen -S {screen_name} -X stuff '{keyring_password}\n'"
 
                 print(cmd)
                 ssh_stdin, ssh_stdout, ssh_stderr = ssh.exec_command(cmd)
-                return "\n".join(
-                    [
-                        keyring_output,
-                        ssh_stdout.read().decode("utf-8"),
-                        ssh_stderr.read().decode("utf-8"),
-                    ]
-                )
+
+                output = f"<b>Keyring output:</b>\n{keyring_output}\n"
+                output += "\n\n<br /><b>Docker output:</b>"
+                output += f"\n{ssh_stdout.read().decode('utf-8')}"
+                output += f"\n{ssh_stderr.read().decode('utf-8')}"
+
+                return html_output(output)
 
             return validated
 
@@ -310,8 +319,8 @@ def get_server(server_id: int):
             for image in docker_client.images():
                 docker_images += image["RepoTags"]
 
-            containers = docker_client.containers()
-            containers = [c for c in containers if c["Image"].endswith("dvpn-node")]
+            containers = docker_client.containers(all=True)
+            containers = [c for c in containers if re.search(r'(dvpn-node:latest|dvpn-node)$', c["Image"]) is not None]
             # For each container search for tcp port and then get node status
             # Estract al node config
             for container in containers:
@@ -337,7 +346,7 @@ def get_server(server_id: int):
                         node_config = Config.node_toml2wellknow(node_config)
 
                         node_config["extras"]["node_folder"]["value"] = mount["Source"]
-                        service_type = node_config["node"]["type"]["value"]
+                        service_type = Config.val(default_node_config, "node", "type")
                         service_config = ssh.read_file(
                             os.path.join(mount["Source"], f"{service_type}.toml")
                         )
@@ -369,13 +378,11 @@ def get_server(server_id: int):
         tcp_port = secrets.SystemRandom().randrange(1000, 9000)
         name = randomname.get_name()
         default_node_config["node"]["moniker"]["value"] = name
-        default_node_config["node"]["remote_url"][
-            "value"
-        ] = f"https://{ssh.ifconfig()}:{tcp_port}"
+        remote_url = f"https://{ssh.ifconfig()}:{tcp_port}"
+        default_node_config["node"]["remote_url"]["value"] = remote_url
         default_node_config["node"]["listen_on"]["value"] = f"0.0.0.0:{tcp_port}"
-        default_node_config["extras"]["udp_port"][
-            "value"
-        ] = secrets.SystemRandom().randrange(1000, 9000)
+        udp_port = secrets.SystemRandom().randrange(1000, 9000)
+        default_node_config["extras"]["udp_port"]["value"] = udp_port
         home_directory = ssh.get_home()
         default_node_config["extras"]["node_folder"]["value"] = os.path.join(
             home_directory, f".sentinel-node-{name}"
@@ -388,52 +395,6 @@ def get_server(server_id: int):
         server_info=server_info,
         default_node_config=default_node_config,
     )
-
-
-@app.route("/create", methods=("GET", "POST"))
-def create_config():
-    node_config = copy.deepcopy(Config.node)
-    if request.method == "POST":
-        form = request.form.to_dict()
-        for conf in form:
-            group, key = conf.split(".")
-            node_config[group][key]["value"] = form[conf]
-        validated = Config.validate_config(node_config)
-        if type(validated) == bool and validated == True:
-            node_folder = node_config["extras"]["node_folder"]["value"]
-            os.makedirs(node_folder, exist_ok=True)
-            with open(os.path.join(node_folder, "config.toml"), "w") as f:
-                f.write(Config.tomlize(node_config))
-            node_type = node_config["node"]["type"]["value"]
-            if node_type == "wireguard":
-                wireguard_config = copy.deepcopy(Config.wireguard)
-                wireguard_config["listen_port"]["value"] = node_config["extras"][
-                    "udp_port"
-                ]["value"]
-                wireguard_config["private_key"]["value"] = WgPsk().key
-                with open(os.path.join(node_folder, "wireguard.toml"), "w") as f:
-                    f.write(Config.tomlize(wireguard_config))
-            elif node_type == "v2ray":
-                v2ray_config = copy.deepcopy(Config.v2ray)
-                v2ray_config["vmess"]["listen_port"]["value"] = node_config["extras"][
-                    "udp_port"
-                ]["value"]
-                with open(os.path.join(node_folder, "v2ray.toml"), "w") as f:
-                    f.write(Config.tomlize(v2ray_config))
-
-            return render_template(
-                "create.html",
-                node_config=node_config,
-                alert={"message": "Configuration validated", "success": True},
-            )
-        else:
-            return render_template(
-                "create.html",
-                node_config=node_config,
-                alert={"message": validated, "success": False},
-            )
-
-    return render_template("create.html", node_config=node_config)
 
 
 if __name__ == "__main__":

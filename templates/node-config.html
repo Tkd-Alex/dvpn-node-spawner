@@ -21,7 +21,7 @@
         </div>
         <br>
     {% endfor %}
-    <button type="submit" class="btn btn-primary my-1">Save configuration</button>
+    <button type="submit" class="btn btn-primary my-1">{{ 'Save configuration' if container_id is defined else 'Spawn new node' }}</button>
 </form>
 
 <script>
@@ -39,6 +39,7 @@
         const formDataObj = Object.fromEntries(myFormData.entries());
         formDataObj.action = container_id == null ? "create-node" : "update-node-conf"
         const url = container_id == null ? window.location.href : `/api/server/${server_id}/${container_id}`
+        $("#spinner").removeAttr('hidden');
         fetch(url, {
             headers: {
                 'Accept': 'application/json',
@@ -52,7 +53,7 @@
             console.log(data);
             $("#spinner").attr("hidden", true);
 
-            $("#messageModalBody").text(data)
+            $("#messageModalBody").html(data)
             new bootstrap.Modal($("#messageModal"), {}).show();
         })
         .catch((error) => { console.log(error); $("#spinner").attr("hidden", true); })

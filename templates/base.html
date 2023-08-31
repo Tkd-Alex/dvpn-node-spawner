@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+  <!DOCTYPE html>
 <html lang="en" data-bs-theme="light">
 <head>
     <meta charset="utf-8">
@@ -44,28 +44,32 @@
       }
     </style>
 </head>
+
+<div
+  class="modal fade"
+  id="messageModal"
+  tabindex="-1"
+  role="dialog"
+  aria-hidden="true"
+>
+  <div class="modal-dialog modal-lg modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Response</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body" style="word-wrap: break-word;" id="messageModalBody"></div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+        <button type="button" class="btn btn-primary" onClick="window.location.reload();">Refresh</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <body class="d-flex flex-column min-vh-100">
     <div class="container">
         <h4 class="display-4 text-primary"><i class="bi bi-node-plus"></i> NodeSpawner</h4>
-        <div
-            class="modal fade"
-            id="messageModal"
-            tabindex="-1"
-            role="dialog"
-            aria-hidden="true"
-          >
-            <div class="modal-dialog modal-lg modal-dialog-scrollable">
-              <div class="modal-content">
-                <div class="modal-header">
-                  <h5 class="modal-title">Response</h5>
-                  <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                </div>
-                <div class="modal-body" style="word-wrap: break-word;" id="messageModalBody">
-                </div>
-              </div>
-            </div>
-          </div>
-
         <div hidden id="spinner"></div>
         {% block content %} {% endblock %}
     </div>
