@@ -338,6 +338,7 @@ def handle_server(server_id: int):
                 # Send directly ssh command
                 # Prepare command ...
                 moniker = Config.val(new_node_config, "node", "moniker")
+                moniker = moniker.lower().replace(" ", "-")
                 docker_image = docker_images.pop(0)
                 # cap-add/drop, sysctl and /lib/modules volume probably are not needed for v2ray node
                 common_arguments = " ".join(
