@@ -29,6 +29,7 @@ Easy right? Just install the python requirements and start the main.py file 😎
 - **tmux**, used for handle non-deamon container / especially useful when the keywring is setup as 'file' and we need to submit a wallet password
 - **openssl**, used for create SSL certificate that will be used to server on https the /status page
 - **jq**, used for parsing the output of ipinfo website
+All the bash scripting for install the requirements are developed for ubuntu. If you plan to install the docker or requirements with the dashboard on arch-linux / centos or other disto please edit all the apt reference with you os package manager like pacman or yum.
 #### Management
 The dashboard was developed on free time and it may not be perfect;
 - After some actions like start/restart stop and so on the page must be refreshed.
