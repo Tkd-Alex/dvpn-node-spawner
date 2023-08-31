@@ -147,6 +147,23 @@ class Config:
         "private_key": {"value": None, "description": "Server private key"},
     }
 
+    # This value cannot be edited
+    # Currently the check on read_only values is done just on f/e side
+
+    # TCP Port, we can reboot the container and change the port, we should re-bind/re-create the container
+    # UDP Port, same as TCP port
+    # The node folder probably could be changed, but we should migrate all the files
+    # For backend and from we could have some keyring issue
+    read_only = [
+        "listen_on",
+        "remote_url",
+        "type",
+        "node_folder",
+        "udp_port",
+        "backend",
+        "from"
+    ]
+
     def validate_config(node_config: dict, allow_empty: list) -> str | bool:
         remote_url = node_config["node"]["remote_url"]["value"]
         listen_on = node_config["node"]["listen_on"]["value"]
@@ -209,3 +226,15 @@ class Config:
 
     def val(config: dict, group: str, key: str):
         return config[group][key]["value"]
+
+    def from_json(json_config: dict, base_values: dict = None, is_update: bool = False) -> dict:
+        if base_values is None:
+            base_values = copy.deepcopy(Config.node)
+        if "action" in json_config:
+            del json_config["action"]
+        for conf in json_config:
+            group, key = conf.split(".")
+            if (is_update is False) or (is_update is True and key not in Config.read_only):
+                base_values[group][key]["value"] = json_config[conf]
+                print("Save", group, key, json_config[conf])
+        return base_values

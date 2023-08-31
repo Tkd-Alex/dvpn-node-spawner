@@ -6,15 +6,38 @@
                 <div class="form-group col-6">
                     <label for="{{key}}-id">{{ key }} - <small class="form-text text-muted">{{config[header][key].description}}</small></label>
                     {% if 'options' in config[header][key] %}
-                    <select class="form-control" name="{{header}}.{{key}}" id="{{key}}-id" placeholder="{{key}}" value="{{config[header][key].value}}">
+                    <select
+                        class="form-control"
+                        name="{{header}}.{{key}}"
+                        {{ 'disabled' if key in readonly_values else '' }}
+                        id="{{key}}-id"
+                        placeholder="{{key}}"
+                        value="{{config[header][key].value}}"
+                    >
                         {% for option in config[header][key]['options'] %}
                         <option value="{{option}}">{{option}}</option>
                         {% endfor %}
                     </select>
                     {% elif config[header][key].value is number %}
-                        <input type="number" class="form-control" name="{{header}}.{{key}}" id="{{key}}-id" placeholder="{{key}}" value="{{config[header][key].value}}">
+                        <input
+                            type="number"
+                            class="form-control"
+                            name="{{header}}.{{key}}"
+                            {{ 'disabled' if key in readonly_values else '' }}
+                            id="{{key}}-id"
+                            placeholder="{{key}}"
+                            value="{{config[header][key].value}}"
+                        >
                     {% else %}
-                        <input type="text" class="form-control" name="{{header}}.{{key}}" id="{{key}}-id" placeholder="{{key}}" value="{{config[header][key].value}}">
+                        <input
+                            type="text"
+                            class="form-control"
+                            name="{{header}}.{{key}}"
+                            {{ 'disabled' if key in readonly_values else '' }}
+                            id="{{key}}-id"
+                            placeholder="{{key}}"
+                            value="{{config[header][key].value}}"
+                        >
                     {% endif %}
                 </div>
             {% endfor %}

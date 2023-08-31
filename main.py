@@ -93,7 +93,8 @@ def post_container(server_id: int, container_id: str):
         docker_client = ssh.docker(docker_api_version)
 
         containers = docker_client.containers(all=True)
-        if container_id in [c["Id"] for c in containers]:
+        containers = [c for c in containers if c["Id"] == container_id]
+        if containers != []:
             if action == "logs":
                 logs = docker_client.logs(container_id, tail=250)
                 ssh.close()
@@ -101,31 +102,48 @@ def post_container(server_id: int, container_id: str):
                 html = conv.convert(logs.decode("utf-8"))
                 return html
             elif action == "update-node-conf":
-                default_node_config = copy.deepcopy(Config.node)
-                # Duplicate code under get_server method() -> POST [create-node] ...
-                # START DUPLICATE BLOCK #
-                del json_request["action"]
-                for conf in json_request:
-                    group, key = conf.split(".")
-                    default_node_config[group][key]["value"] = json_request[conf]
 
-                # Allow wallet_mnemonic if is empty we are creating a new key
-                # If the keywing is test a wallet_password is not needed
-                allow_empty = ["ipv4_address", "wallet_mnemonic"]
-                if Config.val(default_node_config, "keyring", "backend") == "test":
-                    allow_empty.append("wallet_password")
+                container = containers.pop(0)
+                node_folder = None
+                current_node_config = None
+                for mount in container["Mounts"]:
+                    if mount["Type"] == "bind" and mount["Source"] != "/lib/modules":
+                        node_folder = mount["Source"]
+                        node_config_fpath = os.path.join(mount["Source"], "config.toml")
+                        current_node_config = ssh.read_file(node_config_fpath)
+                        current_node_config = tomllib.loads(current_node_config)
+                        current_node_config = Config.node_toml2wellknow(current_node_config)
+                        break
 
-                validated = Config.validate_config(
-                    default_node_config, allow_empty=allow_empty
+                if current_node_config is None:
+                    ssh.close()
+                    return "Unable to find current node configuration on the server"
+
+                updated_node_config = Config.from_json(
+                    json_request,
+                    base_values=current_node_config,
+                    is_update=True
                 )
-                # END DUPLICATE BLOCK #
+
+                # For the update we don't need the extras key
+                allow_empty = ["ipv4_address"] + list(Config.node["extras"].keys())
+                validated = Config.validate_config(
+                    updated_node_config, allow_empty=allow_empty
+                )
                 if type(validated) == bool and validated == True:
                     with tempfile.TemporaryDirectory() as tmpdirname:
                         config_fpath = os.path.join(tmpdirname, "config.toml")
                         with open(config_fpath, "w") as f:
-                            f.write(Config.tomlize(default_node_config))
-                        node_folder = Config.val(default_node_config, "extras", "node_folder")
+                            f.write(Config.tomlize(updated_node_config))
+
+                        # node_folder = Config.val(updated_node_config, "extras", "node_folder")
+                        # We already have this fpath got from container info
                         ssh.put_file(config_fpath, node_folder)
+
+                        # What about protocol change or udp port?
+                        # wait... the udp port can't be changed, the container must be "recreated" / issue with port binding
+                        # udp_port = Config.val(updated_node_config, "extras", "udp_port")
+
                     # Probably we should implement auto reboot here.
                     return "Configuration updated, don't forget to reboot your node"
                 return validated
@@ -162,7 +180,6 @@ def delete_server(server_id: int):
 
 @app.route("/server/<server_id>", methods=["GET", "POST"])
 def get_server(server_id: int):
-    default_node_config = copy.deepcopy(Config.node)
     server = db.session.get(Servers, server_id)
     # if server is None:
     ssh = SSH(
@@ -194,29 +211,26 @@ def get_server(server_id: int):
                 ssh.close()
                 return "Unable to find a valid dvpn-node image"
 
-            del json_request["action"]
-            for conf in json_request:
-                group, key = conf.split(".")
-                default_node_config[group][key]["value"] = json_request[conf]
+            new_node_config = Config.from_json(json_request)
 
             # Allow wallet_mnemonic if is empty we are creating a new key
             # If the keywing is test a wallet_password is not needed
             allow_empty = ["ipv4_address", "wallet_mnemonic"]
-            if Config.val(default_node_config, "keyring", "backend") == "test":
+            if Config.val(new_node_config, "keyring", "backend") == "test":
                 allow_empty.append("wallet_password")
 
             validated = Config.validate_config(
-                default_node_config, allow_empty=allow_empty
+                new_node_config, allow_empty=allow_empty
             )
             if type(validated) == bool and validated == True:
-                node_folder = Config.val(default_node_config, "extras", "node_folder")
+                node_folder = Config.val(new_node_config, "extras", "node_folder")
                 # Keyring / wallet
-                keyring_backend = Config.val(default_node_config, "keyring", "backend")
-                keyring_password = Config.val(default_node_config, "extras", "wallet_password")
+                keyring_backend = Config.val(new_node_config, "keyring", "backend")
+                keyring_password = Config.val(new_node_config, "extras", "wallet_password")
                 # Networking
-                udp_port = Config.val(default_node_config, "extras", "udp_port")
+                udp_port = Config.val(new_node_config, "extras", "udp_port")
                 tcp_port = (
-                    Config.val(default_node_config, "node", "listen_on")
+                    Config.val(new_node_config, "node", "listen_on")
                     .split(":")[-1]
                     .strip()
                 )
@@ -233,8 +247,8 @@ def get_server(server_id: int):
                 with tempfile.TemporaryDirectory() as tmpdirname:
                     sentinel_cli = SentinelCLI(tmpdirname)
 
-                    keyring_keyname = Config.val(default_node_config, "keyring", "from")
-                    wallet_mnemonic = Config.val(default_node_config, "extras", "wallet_mnemonic")
+                    keyring_keyname = Config.val(new_node_config, "keyring", "from")
+                    wallet_mnemonic = Config.val(new_node_config, "extras", "wallet_mnemonic")
                     valid_mnemonic = wallet_mnemonic is None or len(wallet_mnemonic.split(" ")) < 23
 
                     if valid_mnemonic is True:
@@ -268,9 +282,9 @@ def get_server(server_id: int):
 
                     config_fpath = os.path.join(tmpdirname, "config.toml")
                     with open(config_fpath, "w") as f:
-                        f.write(Config.tomlize(default_node_config))
+                        f.write(Config.tomlize(new_node_config))
 
-                    node_type = Config.val(default_node_config, "node", "type")
+                    node_type = Config.val(new_node_config, "node", "type")
                     if node_type == "wireguard":
                         service_fpath = os.path.join(tmpdirname, "wireguard.toml")
                         wireguard_config = copy.deepcopy(Config.wireguard)
@@ -313,7 +327,7 @@ def get_server(server_id: int):
 
                 # Send directly ssh command
                 # Prepare command ...
-                moniker = Config.val(default_node_config, "node", "moniker")
+                moniker = Config.val(new_node_config, "node", "moniker")
                 docker_image = docker_images.pop(0)
                 # cap-add/drop, sysctl and /lib/modules volume probably are not needed for v2ray node
                 common_arguments = " ".join(
@@ -393,6 +407,8 @@ def get_server(server_id: int):
                 output = docker_client.pull(repository, tag=None)
                 return html_output(output)
 
+    default_node_config = copy.deepcopy(Config.node)
+
     ssh_stdin, ssh_stdout, ssh_stderr = ssh.sudo_exec_command("sudo whoami")
     sudoers_permission = ssh_stdout.readlines()[-1].strip() == "root"
 
@@ -439,8 +455,8 @@ def get_server(server_id: int):
                                 container["NodeStatus"] = {"exception": f"{e}"}
                 for mount in container["Mounts"]:
                     if mount["Type"] == "bind" and mount["Source"] != "/lib/modules":
-                        node_config_fpath = os.path.join(mount["Source"], "config.toml")
-                        node_config = ssh.read_file(node_config_fpath)
+                        config_fpath = os.path.join(mount["Source"], "config.toml")
+                        node_config = ssh.read_file(config_fpath)
                         node_config = tomllib.loads(node_config)
                         node_config = Config.node_toml2wellknow(node_config)
 
@@ -494,6 +510,7 @@ def get_server(server_id: int):
         server_id=server_id,
         server_info=server_info,
         default_node_config=default_node_config,
+        readonly_values=Config.read_only
     )
 
 
