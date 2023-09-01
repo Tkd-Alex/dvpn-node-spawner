@@ -4,9 +4,9 @@ import os
 import re
 import secrets
 import tempfile
-import tomllib
 
 import randomname
+import toml
 from ansi2html import Ansi2HTMLConverter
 from flask import Flask, redirect, render_template, request
 from flask_sqlalchemy import SQLAlchemy
@@ -103,7 +103,7 @@ def post_container(server_id: int, container_id: str):
                         node_folder = mount["Source"]
                         node_config_fpath = os.path.join(mount["Source"], "config.toml")
                         current_node_config = ssh.read_file(node_config_fpath)
-                        current_node_config = tomllib.loads(current_node_config)
+                        current_node_config = toml.loads(current_node_config)
                         current_node_config = Config.node_toml2wellknow(
                             current_node_config
                         )
@@ -481,7 +481,7 @@ def handle_server(server_id: int):
                     if mount["Type"] == "bind" and mount["Source"] != "/lib/modules":
                         config_fpath = os.path.join(mount["Source"], "config.toml")
                         node_config = ssh.read_file(config_fpath)
-                        node_config = tomllib.loads(node_config)
+                        node_config = toml.loads(node_config)
                         node_config = Config.node_toml2wellknow(node_config)
 
                         node_config["extras"]["node_folder"]["value"] = mount["Source"]
@@ -489,7 +489,7 @@ def handle_server(server_id: int):
                         service_config = ssh.read_file(
                             os.path.join(mount["Source"], f"{service_type}.toml")
                         )
-                        service_config = tomllib.loads(service_config)
+                        service_config = toml.loads(service_config)
                         node_config["extras"]["udp_port"]["value"] = (
                             service_config["vmess"]["listen_port"]
                             if service_type == "v2ray"
