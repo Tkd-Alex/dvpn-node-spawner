@@ -60,9 +60,8 @@ def parse_settings() -> dict:
             answers["authentication"] is True
             and answers.get("password", None) is not None
         ):
-            answers["password"] = sha256(
-                answers["password"].encode("utf-8")
-            ).hexdigest()
+            password_encoded = answers["password"].encode("utf-8")
+            answers["password"] = sha256(password_encoded).hexdigest()
         answers["listen_port"] = int(answers["listen_port"])
 
         with open(settings_fpath, "w") as f:
