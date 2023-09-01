@@ -37,9 +37,8 @@ def verify_password(username, password):
         ):
             if password not in [None, ""]:
                 password_hash = sha256(password.encode("utf-8")).hexdigest()
-                return password_hash == app.config["custom_authentication"].get(
-                    "password", None
-                )
+                password = app.config["custom_authentication"].get("password", None)
+                return password_hash == password
     else:
         return True  # No authentication settings
     return False
