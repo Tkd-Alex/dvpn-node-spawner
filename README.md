@@ -2,7 +2,7 @@
 NodeSpawner is a dashboard for manage & spawn [dvpn-node](https://github.com/sentinel-official/dvpn-node).
 
 <a href="https://github.com/Tkd-Alex/dvpn-node-spawner/blob/master/LICENSE"><img alt="License" src="https://img.shields.io/github/license/Tkd-Alex/dvpn-node-spawner"></a>
-<a href="https://www.python.org/downloads/release/python-310/"><img alt="Python3.10" src="https://img.shields.io/badge/built%20for-Python≥3.10-red.svg?style=flat"></a>
+<a href="https://www.python.org/downloads/release/python-310/"><img alt="Python3.11" src="https://img.shields.io/badge/built%20for-Python≥3.11-red.svg?style=flat"></a>
 <a href="https://github.com/Tkd-Alex/dvpn-node-spawner/pulls"><img alt="PRsWelcome" src="https://img.shields.io/badge/PRs-welcome-brightgreen.svg?style=flat"></a>
 <a href="https://github.com/Tkd-Alex/dvpn-node-spawner/stargazers"><img alt="GitHub Repo stars" src="https://img.shields.io/github/stars/Tkd-Alex/dvpn-node-spawner"></a>
 <a href="https://github.com/Tkd-Alex/dvpn-node-spawner/forks"><img alt="GitHub Repo stars" src="https://img.shields.io/github/forks/Tkd-Alex/dvpn-node-spawner"></a>
