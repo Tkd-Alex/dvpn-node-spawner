@@ -1,4 +1,4 @@
-<form id="configurationForm">
+<form id="{{ 'configForm-' + containerId[:12] if containerId is defined else 'configForm'}}">
     {% for header in config %}
         <div class="row">
             <h5><i class="bi bi-caret-right-fill"></i> [{{ header }}]</h5>
@@ -9,7 +9,7 @@
                     <select
                         class="form-control"
                         name="{{header}}.{{key}}"
-                        {{ 'disabled' if container_id is defined and key in readonly_values else '' }}
+                        {{ 'disabled' if containerId is defined and key in readonly_values else '' }}
                         id="{{key}}-id"
                         placeholder="{{key}}"
                     >
@@ -22,7 +22,7 @@
                             type="number"
                             class="form-control"
                             name="{{header}}.{{key}}"
-                            {{ 'disabled' if container_id is defined and key in readonly_values else '' }}
+                            {{ 'disabled' if containerId is defined and key in readonly_values else '' }}
                             id="{{key}}-id"
                             placeholder="{{key}}"
                             value="{{config[header][key].value}}"
@@ -32,7 +32,7 @@
                             type="text"
                             class="form-control"
                             name="{{header}}.{{key}}"
-                            {{ 'disabled' if container_id is defined and key in readonly_values else '' }}
+                            {{ 'disabled' if containerId is defined and key in readonly_values else '' }}
                             id="{{key}}-id"
                             placeholder="{{key}}"
                             value="{{config[header][key].value}}"
@@ -43,24 +43,25 @@
         </div>
         <br>
     {% endfor %}
-    <button type="submit" class="btn btn-primary my-1">{{ 'Save configuration' if container_id is defined else 'Spawn new node' }}</button>
+    <button type="submit" class="btn btn-primary my-1">{{ 'Save configuration' if containerId is defined else 'Spawn new node' }}</button>
 </form>
 
 <script>
-    {% if container_id is defined %}
-        const container_id = '{{ container_id }}';
+    {% if containerId is defined %}
+        const containerId = '{{ containerId }}';
     {% else %}
-        const container_id = null;
+        const containerId = null;
     {% endif %}
 
-    const server_id = '{{ server_info._id }}'
+    const serverId = '{{ server_info._id }}'
+    const formId = containerId === null ? "configForm" : `configForm-${containerId.slice(0,12)}`
 
-    document.getElementById('configurationForm').addEventListener('submit', event => {
+    document.getElementById(formId).addEventListener('submit', event => {
         event.preventDefault();
         const myFormData = new FormData(event.target);
         const formDataObj = Object.fromEntries(myFormData.entries());
-        formDataObj.action = container_id == null ? "create-node" : "update-node-conf"
-        const url = container_id == null ? window.location.href : `/api/server/${server_id}/${container_id}`
+        formDataObj.action = containerId == null ? "create-node" : "update-node-conf"
+        const url = containerId == null ? window.location.href : `/api/server/${serverId}/${containerId}`
         $("#spinner").removeAttr('hidden');
         fetch(url, {
             headers: {
