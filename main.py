@@ -48,7 +48,7 @@ class Servers(db.Model):
     _id = db.Column(
         "_id", db.Integer, primary_key=True, autoincrement=True, nullable=False
     )
-    host = db.Column(db.String, nullable=False)
+    host = db.Column(db.String, nullable=False, unique=True)
     username = db.Column(db.String, nullable=False)
     password = db.Column(db.String)
     port = db.Column(db.Integer)
@@ -69,7 +69,7 @@ def catch_all(path):
     return redirect("/servers", code=302)
 
 
-@app.route("/servers", methods=["GET", "POST", "DELETE"])
+@app.route("/servers", methods=["GET", "POST"])
 @auth.login_required
 def handle_servers():
     if request.method == "POST":
@@ -193,7 +193,7 @@ def delete_server(server_id: int):
         if server is not None:
             db.session.delete(server)
             db.session.commit()
-            return "Server delete succeffully"
+            return "Server deleted succeffully"
         return "Server not found"
     return "Method not allowed"
 
