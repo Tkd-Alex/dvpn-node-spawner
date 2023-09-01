@@ -1,7 +1,11 @@
 import json
+import os
 import re
 import ssl
 import urllib.request
+from hashlib import sha256
+
+import inquirer
 
 
 def node_status(host: str, port: int) -> dict:
@@ -20,3 +24,48 @@ def html_output(text: str) -> str:
     text = text.strip()
     text = text.replace("\n", "<br />")
     return text
+
+
+def parse_settings() -> dict:
+    settings_fpath = os.path.join(os.getcwd(), "settings.json")
+    if os.path.isfile(settings_fpath) is False:
+        questions = [
+            inquirer.Text("listen_on", message="Listen address", default="127.0.0.1"),
+            inquirer.Text(
+                "listen_port",
+                message="Listen port",
+                default="3845",
+                validate=lambda _, x: re.match("[0-9]+", x),
+            ),
+            inquirer.Confirm(
+                "authentication",
+                message="Would do you like to configure a simple authentication?",
+                default=True,
+                validate=True,
+                show_default=True,
+            ),
+            inquirer.Text(
+                "username",
+                message="Please provide a username",
+                ignore=lambda x: x["authentication"] is False,
+            ),
+            inquirer.Password(
+                "password",
+                message="Please provide a password",
+                ignore=lambda x: x["authentication"] is False,
+            ),
+        ]
+        answers = inquirer.prompt(questions)
+        if (
+            answers["authentication"] is True
+            and answers.get("password", None) is not None
+        ):
+            answers["password"] = sha256(
+                answers["password"].encode("utf-8")
+            ).hexdigest()
+        answers["listen_port"] = int(answers["listen_port"])
+
+        with open(settings_fpath, "w") as f:
+            json.dump(answers, f, indent=4)
+
+    return json.load(open(settings_fpath, "r"))

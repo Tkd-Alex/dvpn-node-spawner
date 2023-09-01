@@ -163,3 +163,4 @@ cython_debug/
 *.sqlite3
 sentinelcli*
 keyring/*
+settings.json

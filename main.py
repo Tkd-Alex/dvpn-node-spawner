@@ -4,18 +4,20 @@ import os
 import re
 import secrets
 import tempfile
+from hashlib import sha256
 
 import randomname
 import toml
 from ansi2html import Ansi2HTMLConverter
 from flask import Flask, redirect, render_template, request
+from flask_httpauth import HTTPBasicAuth
 from flask_sqlalchemy import SQLAlchemy
 from pywgkey import WgPsk
 
 from handlers.Config import Config
 from handlers.SentinelCLI import SentinelCLI
 from handlers.SSH import SSH
-from utils import html_output, node_status
+from utils import html_output, node_status, parse_settings
 
 app = Flask(__name__)
 app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///servers.sqlite3"
@@ -23,6 +25,24 @@ app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///servers.sqlite3"
 db = SQLAlchemy(app)
 
 server_requirements = {"curl": False, "tmux": False, "openssl": False, "jq": False}
+
+auth = HTTPBasicAuth()
+
+
+@auth.verify_password
+def verify_password(username, password):
+    if app.config["custom_authentication"].get("authentication", False) is True:
+        if username.strip() == app.config["custom_authentication"].get(
+            "username", None
+        ):
+            if password not in [None, ""]:
+                password_hash = sha256(password.encode("utf-8")).hexdigest()
+                return password_hash == app.config["custom_authentication"].get(
+                    "password", None
+                )
+    else:
+        return True  # No authentication settings
+    return False
 
 
 class Servers(db.Model):
@@ -51,6 +71,7 @@ def catch_all(path):
 
 
 @app.route("/servers", methods=["GET", "POST", "DELETE"])
+@auth.login_required
 def handle_servers():
     if request.method == "POST":
         form = request.form.to_dict()
@@ -71,6 +92,7 @@ def handle_servers():
 
 
 @app.route("/api/server/<server_id>/<container_id>", methods=["POST"])
+@auth.login_required
 def post_container(server_id: int, container_id: str):
     json_request = request.get_json()
     action = json_request.get("action", None)
@@ -165,6 +187,7 @@ def post_container(server_id: int, container_id: str):
 
 
 @app.route("/api/server/<server_id>", methods=["DELETE"])
+@auth.login_required
 def delete_server(server_id: int):
     if request.method == "DELETE":
         server = db.session.get(Servers, server_id)
@@ -177,6 +200,7 @@ def delete_server(server_id: int):
 
 
 @app.route("/server/<server_id>", methods=["GET", "POST"])
+@auth.login_required
 def handle_server(server_id: int):
     server = db.session.get(Servers, server_id)
     # if server is None:
@@ -539,6 +563,16 @@ def handle_server(server_id: int):
 
 
 if __name__ == "__main__":
+    settings = parse_settings()
     with app.app_context():
+        app.config["custom_authentication"] = {
+            "authentication": settings.get("authentication", False),
+            "username": settings.get("username", None),
+            "password": settings.get("password", None),
+        }
         db.create_all()
-        app.run(host="127.0.0.1", port=3845, debug=True)
+        app.run(
+            host=settings.get("listen_on", "127.0.0.1"),
+            port=settings.get("listen_port", 3845),
+            debug=True,
+        )

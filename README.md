@@ -21,6 +21,13 @@ pip install -r requirements.txt
 4. Navigate to http://127.0.0.1:3845/servers and enjoy the dashboard 🥳
 
 ### Details
+#### Dashboard settings
+On the first run the dashboard will ask you to setup some simple settings
+- Listen on, you can leave the default for localhost binding, if you plan to access from another host set to `0.0.0.0` or use the same ip of the host machine
+- Liste port, you can leave the default or choose for a custom one
+- BasicAuth, the prompt will ask if you want to setup a simple authentication with username and password.
+
+You can change manually all of this settings under the _settings.json_ file (the password is stored as sha256)
 #### SSH Connection
 - If you have a fresh VPS I suggest to perform at least one SSH connection manually before use the dashboard in order to know the RSA key fingerprint.
 - The ssh comunication can be done via password or via private-key auth (not already tested).
