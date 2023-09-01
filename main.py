@@ -5,6 +5,7 @@ import re
 import secrets
 import tempfile
 from hashlib import sha256
+from pathlib import PurePosixPath
 
 import randomname
 import toml
@@ -122,7 +123,9 @@ def post_container(server_id: int, container_id: str):
                 for mount in container["Mounts"]:
                     if mount["Type"] == "bind" and mount["Source"] != "/lib/modules":
                         node_folder = mount["Source"]
-                        node_config_fpath = os.path.join(mount["Source"], "config.toml")
+                        node_config_fpath = str(
+                            PurePosixPath(mount["Source"], "config.toml")
+                        )
                         current_node_config = ssh.read_file(node_config_fpath)
                         current_node_config = toml.loads(current_node_config)
                         current_node_config = Config.node_toml2wellknow(
@@ -139,7 +142,7 @@ def post_container(server_id: int, container_id: str):
                 )
 
                 # For the update we don't need the extras key
-                allow_empty = ["ipv4_address"] + list(Config.node["extras"].keys())
+                allow_empty = ["ipv4_address"] + list(Config.node["e`xtras"].keys())
                 validated = Config.validate_config(
                     updated_node_config, allow_empty=allow_empty
                 )
@@ -298,16 +301,12 @@ def handle_server(server_id: int):
 
                     # Check if the wallet was created/recovered
                     keyring_backend_path = f"keyring-{keyring_backend}"
-                    if (
-                        os.path.isfile(
-                            os.path.join(
-                                tmpdirname,
-                                keyring_backend_path,
-                                f"{keyring_keyname}.info",
-                            )
-                        )
-                        is False
-                    ):
+                    keyring_info_file = os.path.join(
+                        tmpdirname,
+                        keyring_backend_path,
+                        f"{keyring_keyname}.info",
+                    )
+                    if os.path.isfile(keyring_info_file) is False:
                         ssh.close()
                         return html_output(
                             f"Something went wrong while create/recovery your wallet:\n{keyring_output}"
@@ -333,7 +332,7 @@ def handle_server(server_id: int):
                             f.write(Config.tomlize(v2ray_config))
 
                     ssh.exec_command(
-                        f"mkdir {node_folder} -p && mkdir {os.path.join(node_folder, keyring_backend_path)} -p"
+                        f"mkdir {node_folder} -p && mkdir {PurePosixPath(node_folder, keyring_backend_path)} -p"
                     )
                     for file_path in os.listdir(
                         os.path.join(tmpdirname, keyring_backend_path)
@@ -342,7 +341,7 @@ def handle_server(server_id: int):
                             tmpdirname, keyring_backend_path, file_path
                         )
                         ssh.put_file(
-                            fpath, os.path.join(node_folder, keyring_backend_path)
+                            fpath, str(PurePosixPath(node_folder, keyring_backend_path))
                         )
                     ssh.put_file(config_fpath, node_folder)
                     ssh.put_file(service_fpath, node_folder)
@@ -502,16 +501,19 @@ def handle_server(server_id: int):
                                 container["NodeStatus"] = {"exception": f"{e}"}
                 for mount in container["Mounts"]:
                     if mount["Type"] == "bind" and mount["Source"] != "/lib/modules":
-                        config_fpath = os.path.join(mount["Source"], "config.toml")
+                        config_fpath = str(
+                            PurePosixPath(mount["Source"], "config.toml")
+                        )
                         node_config = ssh.read_file(config_fpath)
                         node_config = toml.loads(node_config)
                         node_config = Config.node_toml2wellknow(node_config)
 
                         node_config["extras"]["node_folder"]["value"] = mount["Source"]
-                        service_type = Config.val(default_node_config, "node", "type")
-                        service_config = ssh.read_file(
-                            os.path.join(mount["Source"], f"{service_type}.toml")
+                        service_type = Config.val(node_config, "node", "type")
+                        service_path = str(
+                            PurePosixPath(mount["Source"], f"{service_type}.toml")
                         )
+                        service_config = ssh.read_file(service_path)
                         service_config = toml.loads(service_config)
                         node_config["extras"]["udp_port"]["value"] = (
                             service_config["vmess"]["listen_port"]

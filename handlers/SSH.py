@@ -1,4 +1,5 @@
 import os
+from pathlib import PurePosixPath
 
 import paramiko
 from docker import APIClient
@@ -65,7 +66,7 @@ class SSH:
             remote = self.get_home()
         ftp = self.client.open_sftp()
         fname = os.path.basename(fpath)
-        ftp.put(fpath, os.path.join(remote, fname))
+        ftp.put(fpath, str(PurePosixPath(remote, fname)))
         ftp.close()
         return True
 
