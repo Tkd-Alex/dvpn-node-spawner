@@ -353,6 +353,11 @@ def handle_server(server_id: int):
                         f'openssl req -new -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 -x509 -sha256 -days 365 -nodes -out {node_folder}/tls.crt -keyout {node_folder}/tls.key -subj "/C=$country/O=NodeSpawner/OU=NodeSpawner/CN=$ip_address"',
                     ]
                     ssh.exec_command(" && ".join(commands))
+                    cmd = " && ".join(commands)
+                    print(cmd)
+                    ssh_stdin, ssh_stdout, ssh_stderr = ssh.exec_command(cmd)
+                    openssl_output = f"\n{ssh_stdout.read().decode('utf-8')}"
+                    openssl_output += f"\n{ssh_stderr.read().decode('utf-8')}"
 
                 # We could use the docker-client, but we have too much configuration/parsing to done, specially for tty interactive
                 # https://docker-py.readthedocs.io/en/stable/api.html#module-docker.api.container
@@ -396,6 +401,8 @@ def handle_server(server_id: int):
                 output = f"<b>Keyring output:</b>\n{keyring_output}\n"
                 if valid_mnemonic is False:
                     output += "\n<br /><u>A new wallet was created, please charge at least 100dvpn and then start the container</u>\n"
+                output += "\n<br /><b>OpenSSL output:</b>"
+                output += openssl_output
                 output += "\n<br /><b>Docker output:</b>"
                 output += f"\n{ssh_stdout.read().decode('utf-8')}"
                 output += f"\n{ssh_stderr.read().decode('utf-8')}"
