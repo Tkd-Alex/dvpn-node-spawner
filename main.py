@@ -113,9 +113,7 @@ def post_container(server_id: int, container_id: str):
             if action == "logs":
                 logs = docker_client.logs(container_id, tail=250)
                 ssh.close()
-                conv = Ansi2HTMLConverter()
-                html = conv.convert(logs.decode("utf-8"))
-                return html
+                return Ansi2HTMLConverter().convert(logs.decode("utf-8"))
             elif action == "update-node-conf":
                 container = containers.pop(0)
                 node_folder = None
@@ -413,12 +411,13 @@ def handle_server(server_id: int):
             return validated
 
         elif action in ["install", "requirements"]:
-            commands = [
-                "sudo apt update",
-                # "sudo apt upgrade -y",
-                f"sudo apt install --yes {' '.join(list(server_requirements.keys()))}",
-            ]
-            cmd = " && ".join(commands)
+            requirements_str = " ".join(list(server_requirements.keys()))
+            pacman = (
+                f"sudo pacman -S --noconfirm {requirements_str}"  # "/etc/arch-release"
+            )
+            apt = f"sudo apt update && sudo apt install --yes {requirements_str}"  # "/etc/debian_version"
+            yum = f"sudo yum install -y {requirements_str}"  # "/etc/redhat-release"
+            cmd = f'if [ -f "/etc/arch-release" ]; then {pacman}; elif [ -f "/etc/redhat-release" ]; then {yum}; else {apt}; fi'
             if action == "install":
                 commands = [
                     "curl -fsSL get.docker.com -o ${HOME}/get-docker.sh",
@@ -433,7 +432,7 @@ def handle_server(server_id: int):
             output = ssh_stdout.read().decode("utf-8")
             output = output.replace(server.password, "*" * len(server.password))
             ssh.close()
-            return html_output(output)
+            return Ansi2HTMLConverter().convert(output)
 
         elif action == "pull":
             cmd = "docker version --format '{{.Client.APIVersion}}'"
@@ -482,6 +481,11 @@ def handle_server(server_id: int):
         if docker_client is not None:
             for image in docker_client.images():
                 docker_images += image["RepoTags"]
+            docker_images = [
+                img
+                for img in docker_images
+                if re.search(r"(dvpn-node:latest|dvpn-node)$", img) is not None
+            ]
 
             containers = docker_client.containers(all=True)
             containers = [
