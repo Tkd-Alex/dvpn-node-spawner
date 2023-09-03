@@ -552,6 +552,7 @@ def handle_server(server_id: int):
         {
             "sudoers_permission": sudoers_permission,
             "requirements": requirements,
+            "requirements_all": all(requirements.values()),
             "docker_installed": docker_installed,
             "containers": containers,
             "docker_images": docker_images,

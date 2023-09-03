@@ -10,28 +10,18 @@
             <span><i class="bi bi-images"></i>  Docker images: {{ ', '.join(server_info.docker_images) }}</span><br>
             <span><i class="bi bi-stack"></i>  Other requirements:
                 {% for requirement in server_info.requirements %}
-                    <!-- [{{ requirement }} <i class="bi {{ 'bi-check-circle-fill text-success' if server_info.requirements[requirement] == true else 'bi-x-circle-fill text-danger' }}"></i>] -->
                     <span class="badge {{ 'bg-success' if server_info.requirements[requirement] == true else 'bg-danger' }}">
                         {{ requirement }}
-                        <!-- <i class="bi {{ 'bi-check-circle-fill' if server_info.requirements[requirement] == true else 'bi-x-circle-fill' }}"></i> -->
                     </span>
                 {% endfor %}
             </span>
         </div>
         <div class="col-3">
             <div class="d-grid gap-2">
-                <!-- <button
-                    onclick="dockerAction('install')"
-                    class="btn btn-outline-info btn-sm"
-                    {{ 'disabled' if server_info.docker_installed == true else '' }}
-                    type="button">
-                    <i class="bi bi-gear-fill"></i> Install docker
-                </button> -->
-
                 <div class="btn-group" role="group">
                     <button type="button" disabled class="btn btn-outline-info btn-sm"><i class="bi bi-gear-fill"></i> Install</button>
                     <button type="button" onclick="dockerAction('install')" {{ 'disabled' if server_info.docker_installed == true else '' }} class="btn btn-outline-info btn-sm"">Docker</button>
-                    <button type="button" onclick="dockerAction('requirements')" {{ 'disabled' if server_info.sudoers_permission == false else '' }}" class="btn btn-outline-info btn-sm"">Requirements</button>
+                    <button type="button" onclick="dockerAction('requirements')" {{ 'disabled' if (server_info.sudoers_permission == false or server_info.requirements_all == true) else '' }} class="btn btn-outline-info btn-sm"">Requirements</button>
                 </div>
 
                 <button

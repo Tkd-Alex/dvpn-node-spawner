@@ -41,7 +41,7 @@ class SSH:
         """
 
     def sudo_exec_command(self, cmd: str):
-        stdin, stdout, stderr = self.client.exec_command(cmd)
+        stdin, stdout, stderr = self.client.exec_command(cmd, get_pty=True)
         if stdin.closed is False and self.password is not None and "sudo" in cmd:
             stdin.write(self.password + "\n")
             stdin.flush()
