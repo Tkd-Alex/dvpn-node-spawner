@@ -48,11 +48,19 @@ def parse_settings() -> dict:
                 "username",
                 message="Please provide a username",
                 ignore=lambda x: x["authentication"] is False,
+                validate=lambda _, x: len(x) > 3,
             ),
             inquirer.Password(
                 "password",
                 message="Please provide a password",
                 ignore=lambda x: x["authentication"] is False,
+                validate=lambda _, x: len(x) > 3,  # At least 3 char
+            ),
+            inquirer.Password(
+                "password_validation",
+                message="Please type the password again",
+                ignore=lambda x: x["authentication"] is False,
+                validate=lambda x, y: y == x["password"],
             ),
         ]
         answers = inquirer.prompt(questions)
@@ -63,6 +71,7 @@ def parse_settings() -> dict:
             password_encoded = answers["password"].encode("utf-8")
             answers["password"] = sha256(password_encoded).hexdigest()
         answers["listen_port"] = int(answers["listen_port"])
+        del answers["password_validation"]
 
         with open(settings_fpath, "w") as f:
             json.dump(answers, f, indent=4)

@@ -11,14 +11,16 @@ NodeSpawner is a dashboard for manage & spawn [dvpn-node](https://github.com/sen
 
 ### How to run
 1. Clone the repository
-2. Install the python requirements
+2. Make sure to have Python gte 3.10 and the virtualenv package installed
+3. Install the python requirements
 ```bash
 virtualenv -p python3 venv
 source venv/bin/activate
 pip install -r requirements.txt
 ```
-3. Execute the script: `python main.py`
-4. Navigate to http://127.0.0.1:3845/servers and enjoy the dashboard 🥳
+4. Execute the script: `python main.py`
+5. Create a dashboard settings
+6. Navigate to http://127.0.0.1:3845/servers and enjoy the dashboard 🥳
 
 ### Details
 #### Dashboard settings
