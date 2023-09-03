@@ -41,11 +41,11 @@ class SSH:
         """
 
     def sudo_exec_command(self, cmd: str):
-        ssh_stdin, ssh_stdout, ssh_stderr = self.client.exec_command(cmd, get_pty=True)
-        if ssh_stdin.closed is False and self.password is not None and "sudo" in cmd:
-            ssh_stdin.write(self.password + "\n")
-            ssh_stdin.flush()
-        return ssh_stdin, ssh_stdout, ssh_stderr
+        stdin, stdout, stderr = self.client.exec_command(cmd)
+        if stdin.closed is False and self.password is not None and "sudo" in cmd:
+            stdin.write(self.password + "\n")
+            stdin.flush()
+        return stdin, stdout, stderr
 
     def read_file(self, fpath: str) -> str:
         sftp = self.client.open_sftp()
@@ -58,8 +58,8 @@ class SSH:
         return content
 
     def get_home(self) -> str:
-        ssh_stdin, ssh_stdout, ssh_stderr = self.client.exec_command("echo ${HOME}")
-        return ssh_stdout.read().decode("utf-8").strip()
+        stdin, stdout, stderr = self.client.exec_command("echo ${HOME}")
+        return stdout.read().decode("utf-8").strip()
 
     def put_file(self, fpath: str, remote: str = None) -> bool:
         if remote is None:
@@ -78,8 +78,8 @@ class SSH:
 
     def docker_api_version(self) -> str:
         cmd = "docker version --format '{{.Client.APIVersion}}'"
-        ssh_stdin, ssh_stdout, ssh_stderr = self.client.exec_command(cmd)
-        return ssh_stdout.read().decode("utf-8").strip()
+        stdin, stdout, stderr = self.client.exec_command(cmd)
+        return stdout.read().decode("utf-8").strip()
 
     def docker(self, docker_api_version: str):
         client = APIClient(
@@ -96,7 +96,5 @@ class SSH:
         return None
 
     def ifconfig(self):
-        ssh_stdin, ssh_stdout, ssh_stderr = self.client.exec_command(
-            "curl -X GET https://ifconfig.me"
-        )
-        return ssh_stdout.read().decode("utf-8").strip()
+        stdin, stdout, stderr = self.client.exec_command("curl https://ifconfig.me")
+        return stdout.read().decode("utf-8").strip()

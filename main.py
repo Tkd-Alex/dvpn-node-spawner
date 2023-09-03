@@ -344,18 +344,37 @@ def handle_server(server_id: int):
                     ssh.put_file(config_fpath, node_folder)
                     ssh.put_file(service_fpath, node_folder)
 
-                    commands = [
-                        "content=$( curl -X GET ipinfo.io )",
-                        "country=$( jq -r  '.country' <<< \"${content}\" )",
-                        "ip_address=$( jq -r  '.ip' <<< \"${content}\" )",
-                        f'openssl req -new -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 -x509 -sha256 -days 365 -nodes -out {node_folder}/tls.crt -keyout {node_folder}/tls.key -subj "/C=$country/O=NodeSpawner/OU=NodeSpawner/CN=$ip_address"',
-                    ]
-                    ssh.exec_command(" && ".join(commands))
-                    cmd = " && ".join(commands)
-                    print(cmd)
-                    ssh_stdin, ssh_stdout, ssh_stderr = ssh.exec_command(cmd)
-                    openssl_output = f"\n{ssh_stdout.read().decode('utf-8')}"
-                    openssl_output += f"\n{ssh_stderr.read().decode('utf-8')}"
+                # set rwx permission to root user
+                cmd = f"sudo setfacl -R -m u:root:rwx {node_folder}"
+                print(cmd)
+                stdin, stdout, stderr = ssh.sudo_exec_command(cmd)
+                folder_permission_output = f"\n{stdout.read().decode('utf-8')}"
+                folder_permission_output += f"\n{stderr.read().decode('utf-8')}"
+                # import code
+                # code.interact(local=locals())
+
+                # Also here we have a problem with the permission
+                # sudo attempt to store .crt .key files to a folder without have the permission
+                commands = [
+                    "content=$( curl -s ipinfo.io )",
+                    "country=$( jq -r  '.country' <<< \"${content}\" )",
+                    "ip_address=$( jq -r  '.ip' <<< \"${content}\" )",
+                    f'openssl req -new -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 -x509 -sha256 -days 365 -nodes -out {node_folder}/tls.crt -keyout {node_folder}/tls.key -subj "/C=$country/O=NodeSpawner/OU=NodeSpawner/CN=$ip_address"',
+                ]
+                cmd = " && ".join(commands)
+                print(cmd)
+                stdin, stdout, stderr = ssh.exec_command(cmd)
+                openssl_output = f"\n{stdout.read().decode('utf-8')}"
+                openssl_output += f"\n{stderr.read().decode('utf-8')}"
+
+                # We have a proble, the container run as sudo user
+                # In order to create the database the node_folder should be owned by sudo
+                # The .toml files an .crt or .key should be good because will be only 'readed' I hope
+                # If we set the permission to the entire folder we couldn't edit the .toml file again uhm
+                # https://github.com/sentinel-official/dvpn-node/blob/a477756d52cba0be6aa07257d02927c57336008f/types/keys.go#L11
+                # Test chown to folder without recursion
+                # sh_stdin, stdout, stderr = ssh.sudo_exec_command(f"sudo chown root:root {node_folder}")
+                # ssh.sudo_exec_command(f"sudo touch {PurePosixPath(node_folder, 'data.db')}")
 
                 # We could use the docker-client, but we have too much configuration/parsing to done, specially for tty interactive
                 # https://docker-py.readthedocs.io/en/stable/api.html#module-docker.api.container
@@ -394,16 +413,21 @@ def handle_server(server_id: int):
                     cmd = f"tmux new-session -d -s {tmux_name} '{cmd}' && sleep 10 && tmux send-keys -t {tmux_name}.0 '{keyring_password}' ENTER && tmux ls | grep '{tmux_name}'"
 
                 print(cmd)
-                ssh_stdin, ssh_stdout, ssh_stderr = ssh.exec_command(cmd)
+                stdin, stdout, stderr = ssh.exec_command(cmd)
 
                 output = f"<b>Keyring output:</b>\n{keyring_output}\n"
                 if valid_mnemonic is False:
-                    output += "\n<br /><u>A new wallet was created, please charge at least 100dvpn and then start the container</u>\n"
+                    output += "<br /><u>A new wallet was created, please charge at least 100dvpn and then start the container</u>"
+
+                output += "\n<br /><b>Folder permission output:</b>"
+                output += folder_permission_output
+
                 output += "\n<br /><b>OpenSSL output:</b>"
                 output += openssl_output
+
                 output += "\n<br /><b>Docker output:</b>"
-                output += f"\n{ssh_stdout.read().decode('utf-8')}"
-                output += f"\n{ssh_stderr.read().decode('utf-8')}"
+                output += f"\n{stdout.read().decode('utf-8')}"
+                output += f"\n{stderr.read().decode('utf-8')}"
 
                 ssh.close()
                 return html_output(output)
@@ -428,16 +452,16 @@ def handle_server(server_id: int):
                 cmd += " && " + " && ".join(commands)
 
             print(cmd)
-            ssh_stdin, ssh_stdout, ssh_stderr = ssh.sudo_exec_command(cmd)
-            output = ssh_stdout.read().decode("utf-8")
+            stdin, stdout, stderr = ssh.sudo_exec_command(cmd)
+            output = stdout.read().decode("utf-8")
             output = output.replace(server.password, "*" * len(server.password))
             ssh.close()
             return Ansi2HTMLConverter().convert(output)
 
         elif action == "pull":
             cmd = "docker version --format '{{.Client.APIVersion}}'"
-            ssh_stdin, ssh_stdout, ssh_stderr = ssh.exec_command(cmd)
-            docker_api_version = ssh_stdout.read().decode("utf-8").strip()
+            stdin, stdout, stderr = ssh.exec_command(cmd)
+            docker_api_version = stdout.read().decode("utf-8").strip()
             docker_installed = (
                 docker_api_version != ""
                 and re.match(r"^[\.0-9]*$", docker_api_version) is not None
@@ -452,8 +476,8 @@ def handle_server(server_id: int):
 
     default_node_config = copy.deepcopy(Config.node)
 
-    ssh_stdin, ssh_stdout, ssh_stderr = ssh.sudo_exec_command("sudo whoami")
-    sudoers_permission = ssh_stdout.readlines()[-1].strip() == "root"
+    stdin, stdout, stderr = ssh.sudo_exec_command("sudo whoami")
+    sudoers_permission = stdout.readlines()[-1].strip() == "root"
 
     docker_api_version = ssh.docker_api_version().strip()
     docker_installed = (
@@ -465,8 +489,8 @@ def handle_server(server_id: int):
     cmd = " && ".join(
         [f"echo {r}=`which {r}`" for r in list(server_requirements.keys())]
     )
-    ssh_stdin, ssh_stdout, ssh_stderr = ssh.sudo_exec_command(cmd)
-    whiches = ssh_stdout.readlines()
+    stdin, stdout, stderr = ssh.sudo_exec_command(cmd)
+    whiches = stdout.readlines()
     for which in whiches:
         requirement, path = which.strip().split("=")
         requirement = requirement.strip()
