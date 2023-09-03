@@ -345,13 +345,7 @@ def handle_server(server_id: int):
                     ssh.put_file(service_fpath, node_folder)
 
                 # set rwx permission to root user
-                cmd = f"sudo setfacl -R -m u:root:rwx {node_folder}"
-                print(cmd)
-                stdin, stdout, stderr = ssh.sudo_exec_command(cmd)
-                folder_permission_output = f"\n{stdout.read().decode('utf-8')}"
-                folder_permission_output += f"\n{stderr.read().decode('utf-8')}"
-                # import code
-                # code.interact(local=locals())
+                ssh.sudo_exec_command(f"sudo setfacl -R -m u:root:rwx {node_folder}")
 
                 # Also here we have a problem with the permission
                 # sudo attempt to store .crt .key files to a folder without have the permission
@@ -361,11 +355,7 @@ def handle_server(server_id: int):
                     "ip_address=$( jq -r  '.ip' <<< \"${content}\" )",
                     f'openssl req -new -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 -x509 -sha256 -days 365 -nodes -out {node_folder}/tls.crt -keyout {node_folder}/tls.key -subj "/C=$country/O=NodeSpawner/OU=NodeSpawner/CN=$ip_address"',
                 ]
-                cmd = " && ".join(commands)
-                print(cmd)
-                stdin, stdout, stderr = ssh.exec_command(cmd)
-                openssl_output = f"\n{stdout.read().decode('utf-8')}"
-                openssl_output += f"\n{stderr.read().decode('utf-8')}"
+                ssh.exec_command(" && ".join(commands))
 
                 # We have a proble, the container run as sudo user
                 # In order to create the database the node_folder should be owned by sudo
@@ -418,12 +408,6 @@ def handle_server(server_id: int):
                 output = f"<b>Keyring output:</b>\n{keyring_output}\n"
                 if valid_mnemonic is False:
                     output += "<br /><u>A new wallet was created, please charge at least 100dvpn and then start the container</u>"
-
-                output += "\n<br /><b>Folder permission output:</b>"
-                output += folder_permission_output
-
-                output += "\n<br /><b>OpenSSL output:</b>"
-                output += openssl_output
 
                 output += "\n<br /><b>Docker output:</b>"
                 output += f"\n{stdout.read().decode('utf-8')}"
