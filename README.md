@@ -20,7 +20,7 @@ pip install -r requirements.txt
 ```
 4. Execute the script: `python main.py`
 5. Create a dashboard settings
-6. Navigate to http://127.0.0.1:3845/servers and enjoy the dashboard 🥳
+6. Navigate to http://127.0.0.1:3845/servers (default one, or you custom `listen_on` and `listen_port` values) and enjoy the dashboard 🥳
 
 ### Details
 #### Dashboard settings
