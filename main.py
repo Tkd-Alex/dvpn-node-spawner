@@ -140,7 +140,7 @@ def post_container(server_id: int, container_id: str):
                 )
 
                 # For the update we don't need the extras key
-                allow_empty = ["ipv4_address"] + list(Config.node["e`xtras"].keys())
+                allow_empty = ["ipv4_address"] + list(Config.node["extras"].keys())
                 validated = Config.validate_config(
                     updated_node_config, allow_empty=allow_empty
                 )
