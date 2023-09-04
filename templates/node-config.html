@@ -72,12 +72,16 @@
             body: JSON.stringify(formDataObj)
         })
         .then((response) => response.text())
-        .then((data)=> {
+        .then(async (data)=> {
             console.log(data);
             $("#spinner").attr("hidden", true);
 
-            $("#messageModalBody").html(data)
+            const messageModalBody = $("#messageModalBody")
+            messageModalBody.html(data)
             new bootstrap.Modal($("#messageModal"), {}).show();
+
+            await new Promise(r => setTimeout(r, 300));;
+            messageModalBody.scrollTop(messageModalBody.prop("scrollHeight"));
         })
         .catch((error) => { console.log(error); $("#spinner").attr("hidden", true); })
     });
