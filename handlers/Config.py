@@ -177,7 +177,7 @@ class Config:
             return "TCP port on listen_on must be a number"
 
         if tcp_port_remote_url != tcp_port_listen_on:
-            return "TCP port must be equal"
+            return "'listen_on - API listen-address' (TCP port) must be equal to 'remote_url - Public URL of the node'"
 
         for group in node_config:
             for key in node_config[group]:

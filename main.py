@@ -345,7 +345,7 @@ def handle_server(server_id: int):
                     ssh.put_file(service_fpath, node_folder)
 
                 # set rwx permission to root user
-                ssh.sudo_exec_command(f"sudo setfacl -R -m u:root:rwx {node_folder}")
+                ssh.sudo_exec_command(f"sudo setfacl -R -m u:root:rw- {node_folder}")
 
                 # Also here we have a problem with the permission
                 # sudo attempt to store .crt .key files to a folder without have the permission
