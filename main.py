@@ -344,14 +344,8 @@ def handle_server(server_id: int):
                     ssh.put_file(config_fpath, node_folder)
                     ssh.put_file(service_fpath, node_folder)
 
-                # set rwx permission to root user
-                cmd = f"sudo setfacl -R -m u:root:rwX {node_folder}"
-                # && sudo setfacl -d -m u:root:rwX {node_folder}"
-                print(cmd)
-                stdin, stdout, stderr = ssh.sudo_exec_command(cmd)
-                print("stdout", stdout.read().decode("utf-8"))
-                print("stderr", stderr.read().decode("utf-8"))
-                print("=" * 25)
+                # set rwx permission to root user for entire folder
+                ssh.sudo_exec_command(f"sudo setfacl -R -m u:root:rwX {node_folder}")
 
                 # Also here we have a problem with the permission
                 # sudo attempt to store .crt .key files to a folder without have the permission
@@ -361,26 +355,12 @@ def handle_server(server_id: int):
                     "ip_address=$( jq -r  '.ip' <<< \"${content}\" )",
                     f'openssl req -new -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 -x509 -sha256 -days 365 -nodes -out {node_folder}/tls.crt -keyout {node_folder}/tls.key -subj "/C=$country/O=NodeSpawner/OU=NodeSpawner/CN=$ip_address"',
                 ]
-                stdin, stdout, stderr = ssh.exec_command(" && ".join(commands))
-                print("stdout", stdout.read().decode("utf-8"))
-                print("stderr", stderr.read().decode("utf-8"))
-                print("=" * 25)
+                ssh.exec_command(" && ".join(commands))
 
-                # set rwx permission to root user
-                cmd = f"sudo setfacl -R -m u:root:rwX {PurePosixPath(node_folder, 'tls.crt')} {PurePosixPath(node_folder, 'tls.key')}"
-                #  && sudo setfacl -d -m u:root:rwX {node_folder}"
-                print(cmd)
-                stdin, stdout, stderr = ssh.sudo_exec_command(cmd)
-                print("stdout", stdout.read().decode("utf-8"))
-                print("stderr", stderr.read().decode("utf-8"))
-                print("=" * 25)
-
-                cmd = f"getfacl -pR {node_folder}"
-                print(cmd)
-                stdin, stdout, stderr = ssh.exec_command(cmd)
-                print("stdout", stdout.read().decode("utf-8"))
-                print("stderr", stderr.read().decode("utf-8"))
-                print("=" * 25)
+                # set rwx permission to root user for tls.* files
+                ssh.sudo_exec_command(
+                    f"sudo setfacl -R -m u:root:rwX {PurePosixPath(node_folder, 'tls.crt')} {PurePosixPath(node_folder, 'tls.key')}"
+                )
 
                 # We have a proble, the container run as sudo user
                 # In order to create the database the node_folder should be owned by sudo
