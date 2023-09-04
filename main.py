@@ -359,7 +359,9 @@ def handle_server(server_id: int):
                     "ip_address=$( jq -r  '.ip' <<< \"${content}\" )",
                     f'openssl req -new -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 -x509 -sha256 -days 365 -nodes -out {node_folder}/tls.crt -keyout {node_folder}/tls.key -subj "/C=$country/O=NodeSpawner/OU=NodeSpawner/CN=$ip_address"',
                 ]
-                ssh.exec_command(" && ".join(commands))
+                _, stdout, stderr = ssh.exec_command(" && ".join(commands))
+                stdout.read()
+                stderr.read()
 
                 # set rwx permission to root user for tls.* files
                 cmd = f"sudo setfacl -R -m u:root:rwX {PurePosixPath(node_folder, 'tls.crt')} {PurePosixPath(node_folder, 'tls.key')}"
