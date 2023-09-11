@@ -20,17 +20,23 @@
             <div class="d-grid gap-2">
                 <div class="btn-group" role="group">
                     <button type="button" disabled class="btn btn-outline-info btn-sm"><i class="bi bi-gear-fill"></i> Install</button>
-                    <button type="button" onclick="dockerAction('install')" {{ 'disabled' if server_info.docker_installed == true else '' }} class="btn btn-outline-info btn-sm"">Docker</button>
-                    <button type="button" onclick="dockerAction('requirements')" {{ 'disabled' if (server_info.sudoers_permission == false or server_info.requirements_all == true) else '' }} class="btn btn-outline-info btn-sm"">Requirements</button>
+                    <button type="button" onclick="serverAction('install')" {{ 'disabled' if server_info.docker_installed == true else '' }} class="btn btn-outline-info btn-sm"">Docker</button>
+                    <button type="button" onclick="serverAction('requirements')" {{ 'disabled' if (server_info.sudoers_permission == false or server_info.requirements_all == true) else '' }} class="btn btn-outline-info btn-sm"">Requirements</button>
                 </div>
 
-                <button
-                    onclick="dockerAction('pull')"
-                    class="btn btn-outline-info btn-sm"
-                    {{ 'disabled' if server_info.docker_installed != true else '' }}
-                    type="button"
-                    ><i class="bi bi-cloud-arrow-down-fill"></i> Pull image
-                </button>
+                <div class="btn-group" role="group">
+                    <button type="button" disabled class="btn btn-outline-info btn-sm"><i class="bi bi-card-image"></i> Image</button>
+                    <button
+                        onclick="serverAction('pull')"
+                        class="btn btn-outline-info btn-sm"
+                        {{ 'disabled' if server_info.docker_installed != true else '' }}
+                        type="button">Pull</button>
+                    <button
+                        onclick="serverAction('build')"
+                        class="btn btn-outline-info btn-sm"
+                        {{ 'disabled' if server_info.docker_installed != true else '' }}
+                        type="button">Build</button>
+                </div>
             </div>
         </div>
     </div>
@@ -191,7 +197,7 @@
             .catch((error) => { console.log(error); $("#spinner").attr("hidden", true); })
         }
 
-        function dockerAction(action) {
+        function serverAction(action) {
             $("#spinner").removeAttr('hidden');
             fetch(window.location.href, {
                 headers: {

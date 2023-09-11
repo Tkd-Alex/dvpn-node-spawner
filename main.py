@@ -25,9 +25,15 @@ app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///servers.sqlite3"
 
 db = SQLAlchemy(app)
 
-server_requirements = {"curl": False, "tmux": False, "openssl": False, "jq": False}
-
 auth = HTTPBasicAuth()
+
+server_requirements = {
+    "curl": False,
+    "tmux": False,
+    "openssl": False,
+    "jq": False,
+    "git": False,
+}
 
 
 @auth.verify_password
@@ -455,7 +461,7 @@ def handle_server(server_id: int):
             ssh.close()
             return Ansi2HTMLConverter().convert(output)
 
-        elif action == "pull":
+        elif action in ["pull", "build"]:
             cmd = "docker version --format '{{.Client.APIVersion}}'"
             stdin, stdout, stderr = ssh.exec_command(cmd)
             docker_api_version = stdout.read().decode("utf-8").strip()
@@ -464,12 +470,26 @@ def handle_server(server_id: int):
                 and re.match(r"^[\.0-9]*$", docker_api_version) is not None
             )
             if docker_installed is True:
-                docker_client = ssh.docker(docker_api_version)
-                # The tag to pull. If tag is None or empty, it is set to latest.
-                repository = "ghcr.io/sentinel-official/dvpn-node"
-                ssh.close()
-                output = docker_client.pull(repository, tag=None)
-                return html_output(output)
+                if action == "pull":
+                    docker_client = ssh.docker(docker_api_version)
+                    # The tag to pull. If tag is None or empty, it is set to latest.
+                    repository = "ghcr.io/sentinel-official/dvpn-node"
+                    ssh.close()
+                    output = docker_client.pull(repository, tag=None)
+                    return html_output(output)
+                elif action == "build":
+                    commands = [
+                        "git clone https://github.com/sentinel-official/dvpn-node.git ${HOME}/dvpn-node-image/",
+                        "cd ${HOME}/dvpn-node-image/",
+                        "commit=$(git rev-list --tags --max-count=1)",
+                        "git checkout $(git describe --tags ${commit})",
+                        "docker build --file Dockerfile --tag sentinel-dvpn-node --force-rm --no-cache --compress .",
+                    ]
+                    print(" && ".join(commands))
+                    _, stdout, stderr = ssh.exec_command(" && ".join(commands))
+                    output = f"\n{stdout.read().decode('utf-8')}"
+                    output += f"\n{stderr.read().decode('utf-8')}"
+                    return html_output(output)
 
     default_node_config = copy.deepcopy(Config.node)
 
