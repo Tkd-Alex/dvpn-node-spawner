@@ -473,7 +473,12 @@ def handle_server(server_id: int):
                 if action == "pull":
                     docker_client = ssh.docker(docker_api_version)
                     # The tag to pull. If tag is None or empty, it is set to latest.
-                    repository = "ghcr.io/sentinel-official/dvpn-node"
+                    # aarch64 (raspberry) https://hub.docker.com/r/7f0a206d04a2/sentinel-dvpn-node
+                    repository = (
+                        "7f0a206d04a2/sentinel-dvpn-node"
+                        if os.uname().machine == "aarch64"
+                        else "ghcr.io/sentinel-official/dvpn-node"
+                    )
                     ssh.close()
                     output = docker_client.pull(repository, tag=None)
                     return html_output(output)

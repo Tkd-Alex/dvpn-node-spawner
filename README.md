@@ -50,7 +50,8 @@ The dashboard was developed on free time and it may not be perfect;
 - The logs are not live but will be refreshed each time you click on "Node logs" tab
 - Most of the default configuration are take from [Trinity dVPN Guides](https://trinityvalidator.com/docs/sentinelguides/node/node-config), like `gigabyte_prices` and `hourly_prices` values. The default configuration is stored on [handlers/Config.py](handlers/Config.py) file and in case of update by [dvpn-node](https://github.com/sentinel-official/dvpn-node), the file could need updates.
 - Configuration like udp port / tcp port / moniker are generated randomly.
-- With the dashboard you can pull the latest image from [official dvpn-node image](https://github.com/sentinel-official/dvpn-node/pkgs/container/dvpn-node). Btw, if you have already built by your self the image, the dashboard will handle only images that ends with `dvpn-node` or `dvpn-node:latest`. Images like: `sentine-dvpn-node` are also valid.
+- With the dashboard you can pull the latest image from [official dvpn-node image](https://github.com/sentinel-official/dvpn-node/pkgs/container/dvpn-node). For **arm64** will be pulled a [un-official image](https://hub.docker.com/r/7f0a206d04a2/sentinel-dvpn-node).
+Btw, if you have already built by your self the image, the dashboard will handle only images that ends with `dvpn-node` or `dvpn-node:latest`. Images like: `sentine-dvpn-node` are also valid.
 #### Keyring
 In order to handle the keyring will be use the [Sentinel CLI client](https://github.com/sentinel-official/cli-client).
 Based on your OS, the script will automatically download the client from [freQniK release v0.3.1](https://github.com/freQniK/cli-client/releases/download/v0.3.1) (after the hub upgrade we don't have an official one). The client will work on /tmp folder, once the wallet is created / recovered the files will be uploaded on the server and the /tmp folder will be deleted.
