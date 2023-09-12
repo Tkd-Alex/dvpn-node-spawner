@@ -488,7 +488,8 @@ def handle_server(server_id: int):
                         "cd ${HOME}/dvpn-node-image/",
                         "commit=$(git rev-list --tags --max-count=1)",
                         "git checkout $(git describe --tags ${commit})",
-                        "docker build --file Dockerfile --tag sentinel-dvpn-node --force-rm --no-cache --compress .",
+                        "tmux new-session -d -s dvpn-node-build 'docker build --file Dockerfile --tag sentinel-dvpn-node --force-rm --no-cache --compress . '",
+                        "tmux ls | grep 'dvpn-node-build'",
                     ]
                     print(" && ".join(commands))
                     _, stdout, stderr = ssh.exec_command(" && ".join(commands))
