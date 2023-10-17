@@ -13,6 +13,9 @@ class SSHAdapterPassword(SSHHTTPAdapter):
 
     def _connect(self):
         if self.ssh_client:
+            self.ssh_client.load_system_host_keys()
+            self.ssh_client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+
             self.ssh_params["password"] = self.password
             self.ssh_client.connect(**self.ssh_params)
 
@@ -28,9 +31,7 @@ class SSH:
 
         self.client.load_system_host_keys()
         self.client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-        self.client.connect(
-            host, username=username, password=password, port=port, look_for_keys=True
-        )
+        self.client.connect(host, username=username, password=password, port=port)
 
         """
         k = paramiko.RSAKey.from_private_key_file(keyfilename)
