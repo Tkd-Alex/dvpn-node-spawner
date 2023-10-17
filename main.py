@@ -376,6 +376,13 @@ def handle_server(server_id: int):
                 stdout.read()
                 stderr.read()
 
+                # open the fw ports for udp and tcp service
+                cmd = f"sudo ufw allow {tcp_port}/tcp && sudo ufw allow {udp_port}/udp"
+                _, stdout, stderr = ssh.sudo_exec_command(cmd)
+                # read both stdout and stderr, I don't know why, It's a colorful patch
+                stdout.read()
+                stderr.read()
+
                 # We have a proble, the container run as sudo user
                 # In order to create the database the node_folder should be owned by sudo
                 # The .toml files an .crt or .key should be good because will be only 'readed' I hope
