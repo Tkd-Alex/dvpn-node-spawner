@@ -11,7 +11,7 @@ def handle_type(value):
 
 
 class Config:
-    # https://trinityvalidator.com/docs/node/node-config
+    # https://trinityvalidator.com/docs/category/node-setup
     # https://github.com/sentinel-official/dvpn-node/blob/development/types/config.go
 
     node = {
@@ -24,7 +24,7 @@ class Config:
             },
             "id": {"value": "sentinelhub-2", "description": "The network chain ID"},
             "rpc_addresses": {
-                "value": "https://rpc.sentinel.co:443",
+                "value": "https://rpc.sentinel.co:443,https://rpc.mathnodes.com:443,https://rpc.sentinel.quokkastake.io:443",
                 "description": "Comma separated Tendermint RPC addresses for the chain",
             },
             "rpc_query_timeout": {
@@ -83,11 +83,11 @@ class Config:
             },
             "moniker": {"value": "your_node_name", "description": "Name of the node"},
             "gigabyte_prices": {
-                "value": "29000000udvpn,39000ibc/A8C2D23A1E6F95DA4E48BA349667E322BD7A6C996D8A4AAE8BA72E190F3D1477,525000ibc/ED07A3391A112B175915CD8FAF43A2DA8E4790EDE12566649D0C2F97716B8518,700000ibc/31FEE1A2A9F9C01113F90BD0BBCCE8FD6BBB8585FAF109A2101827DD1D5B95B8,52500000ibc/B1C0DDB14F25279A2026BC8794E12B259F8BDA546A3C5132CCAEE4431CE36783",
+                "value": "105000ibc/31FEE1A2A9F9C01113F90BD0BBCCE8FD6BBB8585FAF109A2101827DD1D5B95B8,8016ibc/A8C2D23A1E6F95DA4E48BA349667E322BD7A6C996D8A4AAE8BA72E190F3D1477,1068800ibc/B1C0DDB14F25279A2026BC8794E12B259F8BDA546A3C5132CCAEE4431CE36783,106880ibc/ED07A3391A112B175915CD8FAF43A2DA8E4790EDE12566649D0C2F97716B8518,14696000udvpn",
                 "description": "Prices for one gigabyte of bandwidth provided",
             },
             "hourly_prices": {
-                "value": "4900000udvpn",
+                "value": "198000ibc/31FEE1A2A9F9C01113F90BD0BBCCE8FD6BBB8585FAF109A2101827DD1D5B95B8,700ibc/A8C2D23A1E6F95DA4E48BA349667E322BD7A6C996D8A4AAE8BA72E190F3D1477,1630000ibc/B1C0DDB14F25279A2026BC8794E12B259F8BDA546A3C5132CCAEE4431CE36783,15000ibc/ED07A3391A112B175915CD8FAF43A2DA8E4790EDE12566649D0C2F97716B8518,13000000udvpn",
                 "description": "Prices for one hour",
             },
             "remote_url": {
