@@ -482,10 +482,10 @@ def handle_server(server_id: int):
                     # The tag to pull. If tag is None or empty, it is set to latest.
                     # aarch64 (raspberry) https://hub.docker.com/r/7f0a206d04a2/sentinel-dvpn-node
                     stdin, stdout, stderr = ssh.exec_command("uname -m")
-                    os_arch = stdout.read().decode("utf-8").strip()
+                    os_architecture = stdout.read().decode("utf-8").strip()
                     repository = (
                         "7f0a206d04a2/sentinel-dvpn-node"
-                        if os_arch == "aarch64"
+                        if os_architecture == "aarch64"
                         else "ghcr.io/sentinel-official/dvpn-node"
                     )
                     ssh.close()
@@ -506,6 +506,17 @@ def handle_server(server_id: int):
                     output += f"\n{stderr.read().decode('utf-8')}"
                     return html_output(output)
 
+        elif action == "benchmark":
+            yabs_fpath = "${HOME}/yabs.output.text"
+            yabs_url = "https://raw.githubusercontent.com/masonr/yet-another-bench-script/master/yabs.sh"
+            yabs_cmd = f'curl -s -L {yabs_url} | bash > {yabs_fpath} & echo "See you later ...";'
+            cmd = f'if [ -f {yabs_fpath} ]; then cat {yabs_fpath}; else {yabs_cmd} fi'
+            print(cmd)
+            _, stdout, stderr = ssh.exec_command(cmd)
+            output = stdout.read().decode('utf-8')
+            ssh.close()
+            return Ansi2HTMLConverter().convert(output)
+
     default_node_config = copy.deepcopy(Config.node)
 
     stdin, stdout, stderr = ssh.sudo_exec_command("sudo whoami")
@@ -516,6 +527,9 @@ def handle_server(server_id: int):
         docker_api_version != ""
         and re.match(r"^[\.0-9]*$", docker_api_version) is not None
     )
+
+    stdin, stdout, stderr = ssh.exec_command("uname -m")
+    os_architecture = stdout.read().decode("utf-8").strip()
 
     requirements = {}
     cmd = " && ".join(
@@ -604,6 +618,7 @@ def handle_server(server_id: int):
             "docker_installed": docker_installed,
             "containers": containers,
             "docker_images": docker_images,
+            "os_architecture": os_architecture
         }
     )
 
