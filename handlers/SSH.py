@@ -79,7 +79,7 @@ class SSH:
 
     def docker_api_version(self) -> str:
         cmd = "docker version --format '{{.Client.APIVersion}}'"
-        stdin, stdout, stderr = self.client.exec_command(cmd)
+        _, stdout, stderr = self.client.exec_command(cmd)
         return stdout.read().decode("utf-8").strip()
 
     def docker(self, docker_api_version: str):
@@ -96,6 +96,22 @@ class SSH:
             return client
         return None
 
-    def ifconfig(self):
-        stdin, stdout, stderr = self.client.exec_command("curl https://ifconfig.me")
+    def ifconfig(self, url: str = "https://ifconfig.me"):
+        _, stdout, stderr = self.client.exec_command(f"curl {url}")
         return stdout.read().decode("utf-8").strip()
+
+    def yabs(self):
+        yabs_fpath = "${HOME}/yabs.output.text"
+        yabs_url = "https://raw.githubusercontent.com/masonr/yet-another-bench-script/master/yabs.sh"
+        yabs_cmd = f'curl -s -L {yabs_url} | bash > {yabs_fpath} & echo "yabs started, see you later ...";'
+        cmd = f"if [ -f {yabs_fpath} ]; then cat {yabs_fpath}; else {yabs_cmd} fi"
+        _, stdout, stderr = self.client.exec_command(cmd)
+        return stdout.read().decode("utf-8").strip()
+
+    def arch(self):
+        _, stdout, stderr = self.client.exec_command("uname -m")
+        return stdout.read().decode("utf-8").strip()
+
+    def sudoers_permission(self):
+        _, stdout, stderr = self.sudo_exec_command("sudo whoami")
+        return stdout.readlines()[-1].strip() == "root"

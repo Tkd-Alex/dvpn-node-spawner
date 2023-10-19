@@ -469,9 +469,7 @@ def handle_server(server_id: int):
             return Ansi2HTMLConverter().convert(output)
 
         elif action in ["pull", "build"]:
-            cmd = "docker version --format '{{.Client.APIVersion}}'"
-            stdin, stdout, stderr = ssh.exec_command(cmd)
-            docker_api_version = stdout.read().decode("utf-8").strip()
+            docker_api_version = ssh.docker_api_version()
             docker_installed = (
                 docker_api_version != ""
                 and re.match(r"^[\.0-9]*$", docker_api_version) is not None
@@ -481,11 +479,9 @@ def handle_server(server_id: int):
                     docker_client = ssh.docker(docker_api_version)
                     # The tag to pull. If tag is None or empty, it is set to latest.
                     # aarch64 (raspberry) https://hub.docker.com/r/7f0a206d04a2/sentinel-dvpn-node
-                    stdin, stdout, stderr = ssh.exec_command("uname -m")
-                    os_architecture = stdout.read().decode("utf-8").strip()
                     repository = (
                         "7f0a206d04a2/sentinel-dvpn-node"
-                        if os_architecture == "aarch64"
+                        if ssh.arch() == "aarch64"
                         else "ghcr.io/sentinel-official/dvpn-node"
                     )
                     ssh.close()
@@ -507,20 +503,13 @@ def handle_server(server_id: int):
                     return html_output(output)
 
         elif action == "benchmark":
-            yabs_fpath = "${HOME}/yabs.output.text"
-            yabs_url = "https://raw.githubusercontent.com/masonr/yet-another-bench-script/master/yabs.sh"
-            yabs_cmd = f'curl -s -L {yabs_url} | bash > {yabs_fpath} & echo "See you later ...";'
-            cmd = f"if [ -f {yabs_fpath} ]; then cat {yabs_fpath}; else {yabs_cmd} fi"
-            print(cmd)
-            _, stdout, stderr = ssh.exec_command(cmd)
-            output = stdout.read().decode("utf-8")
+            output = ssh.yabs()
             ssh.close()
             return Ansi2HTMLConverter().convert(output)
 
     default_node_config = copy.deepcopy(Config.node)
 
-    stdin, stdout, stderr = ssh.sudo_exec_command("sudo whoami")
-    sudoers_permission = stdout.readlines()[-1].strip() == "root"
+    sudoers_permission = ssh.sudoers_permission()
 
     docker_api_version = ssh.docker_api_version().strip()
     docker_installed = (
@@ -528,8 +517,7 @@ def handle_server(server_id: int):
         and re.match(r"^[\.0-9]*$", docker_api_version) is not None
     )
 
-    stdin, stdout, stderr = ssh.exec_command("uname -m")
-    os_architecture = stdout.read().decode("utf-8").strip()
+    os_architecture = ssh.arch()
 
     requirements = {}
     cmd = " && ".join(
