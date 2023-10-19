@@ -48,16 +48,10 @@
 
     <br>
 
-    {% if server_info.docker_installed == true and server_info.docker_images | length != 0 and server_info.containers | length == 0 %}
-        {% with config=default_node_config %}
-            {% include "node-config.html" %}
-        {% endwith %}
-    {% endif %}
-
-    {% for container in server_info.containers %}
-        <table class="table">
-            <thead>
-                <tr>
+    <table class="table">
+        <thead>
+            <tr>
+                <th scope="col"></th>
                 <th scope="col">CONTAINER ID</th>
                 <th scope="col">IMAGE</th>
                 <th scope="col">CREATED</th>
@@ -65,10 +59,23 @@
                 <th scope="col">STATUS</th>
                 <th scope="col">NAMES</th>
                 <th scope="col"></th>
-                </tr>
-            </thead>
-            <tbody>
+            </tr>
+        </thead>
+        <tbody>
+            {% for container in server_info.containers %}
                 <tr>
+                    <th scope="row">
+                        <button
+                            onclick="selectContainer('{{ container.Id }}')"
+                            data-toggle="tooltip"
+                            data-placement="top"
+                            title="Select"
+                            class="btn btn-sm"
+                            id="{{ 'btn-select-container-' + container.Id[:12] }}">
+                            >
+                            <i class="bi bi-toggle-off"></i>
+                        </button>
+                    </th>
                     <th scope="row">{{ container.Id[:12] }}</th>
                     <td>{{ container.Image }}</td>
                     <td>{{ container.Created }}</td>
@@ -116,41 +123,79 @@
                         {% endif %}
                     </td>
                 </tr>
-            </tbody>
-        </table>
+            {% endfor %}
+            {% if server_info.docker_installed == true and server_info.docker_images | length != 0 %}
+                <tr>
+                    <th scope="row">
+                        <button
+                            onclick="selectContainer(null)"
+                            data-toggle="tooltip"
+                            data-placement="top"
+                            title="Select"
+                            class="btn btn-sm"
+                            id="btn-select-container-null">
+                            <i class="bi bi-toggle-off"></i>
+                        </button>
+                    </th>
+                    <th scope="row">New dvpn-node</th>
+                    <td></td>
+                    <td></td>
+                    <td></td>
+                    <td></td>
+                    <td></td>
+                    <td class="text-end"></td>
+                </tr>
+            {% endif %}
+        </tbody>
+    </table>
 
-        <ul class="nav nav-tabs" role="tablist">
-            <li class="nav-item" role="presentation">
-                <button class="nav-link active" id="config-tab" data-bs-target="{{ '#config-' + container.Id[:12] }}" aria-controls="config" data-bs-toggle="tab" type="button" role="tab" aria-selected="true">Node config</button>
-            </li>
-            <li class="nav-item" role="presentation">
-              <button class="nav-link" id="status-tab" data-bs-target="{{ '#status-' + container.Id[:12] }}" aria-controls="status" data-bs-toggle="tab" type="button" role="tab" aria-selected="false">Node status</button>
-            </li>
-            <li class="nav-item" role="presentation">
-                <button class="nav-link" id="logs-tab" data-bs-target="{{ '#logs-' + container.Id[:12] }}" aria-controls="logs" data-bs-toggle="tab" type="button" role="tab" aria-selected="false" onclick="containerLogs('{{ server_info._id }}', '{{ container.Id }}')">Node logs</button>
-            </li>
-        </ul>
+    {% for container in server_info.containers %}
+        <div id="{{ 'container-block-' + container.Id[:12] }}" hidden>
+            <br>
+            <h5>{{ container.Id[:12] }} ( {{ ', '.join(container.Names) }} )</h5>
+            <ul class="nav nav-tabs" role="tablist">
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link active" id="config-tab" data-bs-target="{{ '#config-' + container.Id[:12] }}" aria-controls="config" data-bs-toggle="tab" type="button" role="tab" aria-selected="true">Node config</button>
+                </li>
+                <li class="nav-item" role="presentation">
+                <button class="nav-link" id="status-tab" data-bs-target="{{ '#status-' + container.Id[:12] }}" aria-controls="status" data-bs-toggle="tab" type="button" role="tab" aria-selected="false">Node status</button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="logs-tab" data-bs-target="{{ '#logs-' + container.Id[:12] }}" aria-controls="logs" data-bs-toggle="tab" type="button" role="tab" aria-selected="false" onclick="containerLogs('{{ server_info._id }}', '{{ container.Id }}')">Node logs</button>
+                </li>
+            </ul>
 
-        <div class="tab-content">
-            <div class="tab-pane fade show active" id="{{ 'config-' + container.Id[:12] }}" role="tabpanel" aria-labelledby="config-tab">
-                <br>
-                {% with config=container.NodeConfig, containerId=container.Id %}
-                    {% include "node-config.html" %}
-                {% endwith %}
+            <div class="tab-content">
+                <div class="tab-pane fade show active" id="{{ 'config-' + container.Id[:12] }}" role="tabpanel" aria-labelledby="config-tab">
+                    <br>
+                    {% with config=container.NodeConfig, containerId=container.Id %}
+                        {% include "node-config.html" %}
+                    {% endwith %}
+                </div>
+                <div class="tab-pane fade" id="{{ 'status-' + container.Id[:12] }}" role="tabpanel" aria-labelledby="status-tab">
+                    <pre id="json-renderer-{{ container.Id }}"></pre>
+                </div>
+                <div class="tab-pane fade" id="{{ 'logs-' + container.Id[:12] }}" role="tabpanel" aria-labelledby="logs-tab">
+                    <div style="max-height: 700px; overflow-y: auto; padding: 15px" id="node-logs-{{ container.Id }}"></div>
+                </div>
             </div>
-            <div class="tab-pane fade" id="{{ 'status-' + container.Id[:12] }}" role="tabpanel" aria-labelledby="status-tab">
-                <pre id="json-renderer-{{ container.Id }}"></pre>
-            </div>
-            <div class="tab-pane fade" id="{{ 'logs-' + container.Id[:12] }}" role="tabpanel" aria-labelledby="logs-tab">
-                <div style="max-height: 700px; overflow-y: auto; padding: 15px" id="node-logs-{{ container.Id }}"></div>
-            </div>
+
+            <script>
+                var data = JSON.parse('{{ container["NodeStatus"] | tojson}}')
+                $("#json-renderer-{{ container.Id }}").jsonViewer(data, {collapsed: false, withQuotes: true, withLinks: true});
+            </script>
         </div>
-
-        <script>
-            var data = JSON.parse('{{ container["NodeStatus"] | tojson}}')
-            $("#json-renderer-{{ container.Id }}").jsonViewer(data, {collapsed: false, withQuotes: true, withLinks: true});
-        </script>
     {% endfor %}
+
+    {% if server_info.docker_installed == true and server_info.docker_images | length != 0 %}
+        <div id="container-block-null" hidden>
+            <br>
+            <h5>New dvpn-node</h5>
+            {% with config=default_node_config %}
+                {% include "node-config.html" %}
+            {% endwith %}
+        </div>
+    {% endif %}
 
     <script>
         async function spawnModal(htmlMessage) {
@@ -220,5 +265,36 @@
             })
             .catch((error) => { console.log(error); $("#spinner").attr("hidden", true); })
         }
+
+        {% if server_info.containers | length == 0 %}
+            var selectedContainer = null;
+        {% else %}
+            var selectedContainer = '{{ server_info.containers[0].Id }}'
+        {% endif %}
+
+        function selectContainer(containerId){
+            selectedContainer = containerId;
+            toggleSelected();
+        }
+
+        function toggleSelected(){
+            // const containerBlocks = document.querySelectorAll("div[id^='container-block-']")
+            var selector = selectedContainer ? selectedContainer.slice(0, 12) : 'null';
+
+            $('[id^="container-block-"]').each(function(){
+                if ($( this ).attr('id').endsWith(selector)) $( this ).removeAttr('hidden');
+                else $( this ).attr("hidden", true);
+            })
+
+            $('[id^="btn-select-container-"]').each(function(){
+                $( this ).html(
+                    $( this ).attr('id').endsWith(selector) ?
+                    '<i class="bi bi-toggle-on"></i>' :
+                    '<i class="bi bi-toggle-off"></i>'
+                );
+            })
+        }
+        toggleSelected();
+
     </script>
 {% endblock %}

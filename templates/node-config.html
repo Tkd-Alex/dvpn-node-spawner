@@ -48,13 +48,13 @@
 
 <script>
     {% if containerId is defined %}
-        const containerId = '{{ containerId }}';
+        var containerId = '{{ containerId }}';
     {% else %}
-        const containerId = null;
+        var containerId = null;
     {% endif %}
 
-    const serverId = '{{ server_info._id }}'
-    const formId = containerId === null ? "configForm" : `configForm-${containerId.slice(0,12)}`
+    var serverId = '{{ server_info._id }}' // Should be always the same when loaded
+    var formId = containerId === null ? "configForm" : `configForm-${containerId.slice(0,12)}`
 
     document.getElementById(formId).addEventListener('submit', event => {
         event.preventDefault();

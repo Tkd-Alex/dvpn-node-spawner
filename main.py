@@ -510,10 +510,10 @@ def handle_server(server_id: int):
             yabs_fpath = "${HOME}/yabs.output.text"
             yabs_url = "https://raw.githubusercontent.com/masonr/yet-another-bench-script/master/yabs.sh"
             yabs_cmd = f'curl -s -L {yabs_url} | bash > {yabs_fpath} & echo "See you later ...";'
-            cmd = f'if [ -f {yabs_fpath} ]; then cat {yabs_fpath}; else {yabs_cmd} fi'
+            cmd = f"if [ -f {yabs_fpath} ]; then cat {yabs_fpath}; else {yabs_cmd} fi"
             print(cmd)
             _, stdout, stderr = ssh.exec_command(cmd)
-            output = stdout.read().decode('utf-8')
+            output = stdout.read().decode("utf-8")
             ssh.close()
             return Ansi2HTMLConverter().convert(output)
 
@@ -618,23 +618,23 @@ def handle_server(server_id: int):
             "docker_installed": docker_installed,
             "containers": containers,
             "docker_images": docker_images,
-            "os_architecture": os_architecture
+            "os_architecture": os_architecture,
         }
     )
 
-    if containers == []:
-        tcp_port = secrets.SystemRandom().randrange(1000, 9000)
-        name = randomname.get_name()
-        default_node_config["node"]["moniker"]["value"] = name
-        remote_url = f"https://{ssh.ifconfig()}:{tcp_port}"
-        default_node_config["node"]["remote_url"]["value"] = remote_url
-        default_node_config["node"]["listen_on"]["value"] = f"0.0.0.0:{tcp_port}"
-        udp_port = secrets.SystemRandom().randrange(1000, 9000)
-        default_node_config["extras"]["udp_port"]["value"] = udp_port
-        home_directory = ssh.get_home()
-        default_node_config["extras"]["node_folder"]["value"] = os.path.join(
-            home_directory, f".sentinel-node-{name}"
-        )
+    # if containers == []:   # Fill anyway :)
+    tcp_port = secrets.SystemRandom().randrange(1000, 9000)
+    name = randomname.get_name()
+    default_node_config["node"]["moniker"]["value"] = name
+    remote_url = f"https://{ssh.ifconfig()}:{tcp_port}"
+    default_node_config["node"]["remote_url"]["value"] = remote_url
+    default_node_config["node"]["listen_on"]["value"] = f"0.0.0.0:{tcp_port}"
+    udp_port = secrets.SystemRandom().randrange(1000, 9000)
+    default_node_config["extras"]["udp_port"]["value"] = udp_port
+    home_directory = ssh.get_home()
+    default_node_config["extras"]["node_folder"]["value"] = os.path.join(
+        home_directory, f".sentinel-node-{name}"
+    )
 
     ssh.close()
     return render_template(
