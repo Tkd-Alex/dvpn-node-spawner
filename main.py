@@ -27,13 +27,17 @@ db = SQLAlchemy(app)
 
 auth = HTTPBasicAuth()
 
-server_requirements = {
+# Packages name from packet manager
+requirements_packages = {
     "curl": False,
     "tmux": False,
     "openssl": False,
     "jq": False,
     "git": False,
+    "acl": False,
 }
+# Command to search in order to check if package is installed
+packages_commands = {"acl": "setfacl"}
 
 
 @auth.verify_password
@@ -445,7 +449,15 @@ def handle_server(server_id: int):
             return validated
 
         elif action in ["install", "requirements"]:
-            requirements_str = " ".join(list(server_requirements.keys()))
+            # requirements_str = " ".join(list(requirements_packages.keys()))
+            # Filter only non-installed requirements
+            requirements = ssh.check_requirements(
+                requirements_packages=requirements_packages,
+                packages_commands=packages_commands,
+            )
+            requirements_str = " ".join(
+                [r for r in requirements if requirements[r] is False]
+            )
             pacman = (
                 f"sudo pacman -S --noconfirm {requirements_str}"  # "/etc/arch-release"
             )
@@ -519,18 +531,9 @@ def handle_server(server_id: int):
 
     os_architecture = ssh.arch()
 
-    requirements = {}
-    cmd = " && ".join(
-        [f"echo {r}=`which {r}`" for r in list(server_requirements.keys())]
+    requirements = ssh.check_requirements(
+        requirements_packages=requirements_packages, packages_commands=packages_commands
     )
-    stdin, stdout, stderr = ssh.sudo_exec_command(cmd)
-    whiches = stdout.readlines()
-    for which in whiches:
-        requirement, path = which.strip().split("=")
-        requirement = requirement.strip()
-        path = path.strip()
-        if requirement in server_requirements:
-            requirements[requirement] = path != "" and path.endswith(requirement)
 
     docker_images = []
     containers = []

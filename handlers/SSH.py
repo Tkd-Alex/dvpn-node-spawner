@@ -115,3 +115,30 @@ class SSH:
     def sudoers_permission(self):
         _, stdout, stderr = self.sudo_exec_command("sudo whoami")
         return stdout.readlines()[-1].strip() == "root"
+
+    # Return a dict where the key is the package and value is a boolean that represent if the package is installed or not (is_installed)
+    def check_requirements(
+        self, requirements_packages: dict, packages_commands: dict
+    ) -> dict:
+        requirements = {}
+        cmd = " && ".join(
+            [
+                f"echo {r}=`which {r}`"
+                for r in [packages_commands.get(k, k) for k in requirements_packages]
+            ]
+        )
+        _, stdout, stderr = self.sudo_exec_command(cmd)
+        whiches = stdout.readlines()
+        inv_commands = {v: k for k, v in packages_commands.items()}
+        for which in whiches:
+            requirement, path = which.strip().split("=")
+            requirement = requirement.strip()
+            path = path.strip()
+            if (
+                requirement in requirements_packages
+                or requirement in packages_commands.values()
+            ):
+                requirements[
+                    inv_commands.get(requirement, requirement)
+                ] = path != "" and path.endswith(requirement)
+        return requirements

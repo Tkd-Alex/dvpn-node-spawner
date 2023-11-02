@@ -42,6 +42,7 @@ You can change manually all of this settings under the _settings.json_ file (the
 - **openssl**, used for create SSL certificate that will be used to serve on https the /status page
 - **jq**, used for parsing the output of ipinfo website
 - **git**, used for clone the dvpn-node repo and build the image
+- **acl**, used for give the right permission to node-folder
 
 All the bash scripting for install the requirements are developed for Ubuntu. If you plan to install docker or the requirements with the dashboard on ArchLinux / Centos or other disto please edit all the _apt_ reference with you os package manager like _pacman_ or _yum_.
 #### Management
