@@ -9,6 +9,9 @@ NodeSpawner is a dashboard for manage & spawn [dvpn-node](https://github.com/sen
 <a href="https://github.com/Tkd-Alex/dvpn-node-spawner/issues?q=is%3Aissue+is%3Aclosed"><img alt="GitHub closed issues" src="https://img.shields.io/github/issues-closed/Tkd-Alex/dvpn-node-spawner"></a>
 <a href="https://github.com/Tkd-Alex/dvpn-node-spawner"><img alt="GitHub last commit" src="https://img.shields.io/github/last-commit/Tkd-Alex/dvpn-node-spawner"></a>
 
+If you want to support the project consider to delegate your DVPNs to me. 💙
+[sentvaloper10unne9aclcdwfysj6ya5vzh7xwj3xht6jhfxn6](https://www.mintscan.io/sentinel/validators/sentvaloper10unne9aclcdwfysj6ya5vzh7xwj3xht6jhfxn6)
+
 ### How to run
 1. Clone the repository
 2. Make sure to have Python gte 3.10 and the virtualenv package installed
