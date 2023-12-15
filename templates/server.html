@@ -155,13 +155,16 @@
             <h5>{{ container.Id[:12] }} ( {{ ', '.join(container.Names) }} )</h5>
             <ul class="nav nav-tabs" role="tablist">
                 <li class="nav-item" role="presentation">
-                    <button class="nav-link active" id="config-tab" data-bs-target="{{ '#config-' + container.Id[:12] }}" aria-controls="config" data-bs-toggle="tab" type="button" role="tab" aria-selected="true">Node config</button>
+                    <button class="nav-link active" id="config-tab" data-bs-target="{{ '#config-' + container.Id[:12] }}" aria-controls="config" data-bs-toggle="tab" type="button" role="tab" aria-selected="true">Config</button>
                 </li>
                 <li class="nav-item" role="presentation">
-                <button class="nav-link" id="status-tab" data-bs-target="{{ '#status-' + container.Id[:12] }}" aria-controls="status" data-bs-toggle="tab" type="button" role="tab" aria-selected="false">Node status</button>
+                    <button class="nav-link" id="status-tab" data-bs-target="{{ '#status-' + container.Id[:12] }}" aria-controls="status" data-bs-toggle="tab" type="button" role="tab" aria-selected="false">Status</button>
                 </li>
                 <li class="nav-item" role="presentation">
-                    <button class="nav-link" id="logs-tab" data-bs-target="{{ '#logs-' + container.Id[:12] }}" aria-controls="logs" data-bs-toggle="tab" type="button" role="tab" aria-selected="false" onclick="containerLogs('{{ server_info._id }}', '{{ container.Id }}')">Node logs</button>
+                    <button class="nav-link" id="logs-tab" data-bs-target="{{ '#logs-' + container.Id[:12] }}" aria-controls="logs" data-bs-toggle="tab" type="button" role="tab" aria-selected="false" onclick="containerLogs('{{ server_info._id }}', '{{ container.Id }}')">Logs</button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="subscriptions-tab" data-bs-target="{{ '#subscriptions-' + container.Id[:12] }}" aria-controls="subscriptions" data-bs-toggle="tab" type="button" role="tab" aria-selected="false">Subscriptions</button>
                 </li>
             </ul>
 
@@ -177,6 +180,40 @@
                 </div>
                 <div class="tab-pane fade" id="{{ 'logs-' + container.Id[:12] }}" role="tabpanel" aria-labelledby="logs-tab">
                     <div style="max-height: 700px; overflow-y: auto; padding: 15px" id="node-logs-{{ container.Id }}"></div>
+                </div>
+                <div class="tab-pane fade" id="{{ 'subscriptions-' + container.Id[:12] }}" role="tabpanel" aria-labelledby="subscriptions-tab">
+                    <div>
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th scope="col">#</th>
+                                    <th scope="col">Address</th>
+                                    <th scope="col">Inactive at</th>
+                                    <th scope="col">Status</th>
+                                    <th scope="col">Status at</th>
+                                    <th scope="col">Gigabytes / Hours</th>
+                                    <th scope="col">Deposit</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for subscription in container.NodeSubscriptions %}
+                                <tr>
+                                    <th scope="row">{{ subscription.id }}</th>
+                                    <td><a href="https://www.mintscan.io/sentinel/address/{{ subscription.address }}" target="_blank" rel="noopener noreferrer">{{ subscription.address }}</a></td>
+                                    <td>{{ subscription.inactive_at }}</td>
+                                    <td>{{ subscription.status }}</td>
+                                    <td>{{ subscription.status_at }}</td>
+                                    {% if subscription.gigabytes != 0 %}
+                                        <td class="text-end">{{ subscription.gigabytes }} GB</td>
+                                    {% else %}
+                                        <td class="text-end">{{ subscription.hours }} HR</td>
+                                    {% endif %}
+                                    <td class="text-end">{{ subscription.deposit.amount }} {{ subscription.deposit.denom }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
             </div>
 

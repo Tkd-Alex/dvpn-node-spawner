@@ -18,6 +18,7 @@ from pywgkey import WgPsk
 from handlers.Config import Config
 from handlers.SentinelCLI import SentinelCLI
 from handlers.SSH import SSH
+from onchain import subscriptions
 from utils import html_output, node_status, parse_settings
 
 app = Flask(__name__)
@@ -561,12 +562,22 @@ def handle_server(server_id: int):
                     container["Created"]
                 ).strftime("%m/%d/%Y, %H:%M:%S")
                 container["NodeStatus"] = {}
+                container["NodeSubscriptions"] = []
                 if container["State"] == "running":
                     for port in container["Ports"]:
                         if port["IP"] == "0.0.0.0" and port["Type"] == "tcp":
                             try:
                                 container["NodeStatus"] = node_status(
                                     server.host, port["PublicPort"]
+                                )
+                                # Curently we can fetch the subscrption only if the node is only
+                                # We need another way to fetch the sendnode address (maybe using the keyring)
+                                node_result = container["NodeStatus"].get("result", {})
+                                sent_node = node_result.get("address", None)
+                                container["NodeSubscriptions"] = (
+                                    []
+                                    if sent_node is None
+                                    else subscriptions(sent_node)
                                 )
                                 break
                             except Exception as e:
