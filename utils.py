@@ -3,6 +3,7 @@ import os
 import re
 import ssl
 import urllib.request
+from datetime import datetime
 from hashlib import sha256
 
 import inquirer
@@ -77,3 +78,7 @@ def parse_settings() -> dict:
             json.dump(answers, f, indent=4)
 
     return json.load(open(settings_fpath, "r"))
+
+
+def string_timestamp(ts: int, fmt: str = "%m/%d/%Y, %H:%M:%S"):
+    return datetime.fromtimestamp(ts).strftime(fmt)

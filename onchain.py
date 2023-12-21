@@ -1,11 +1,11 @@
-from datetime import datetime
-
 import grpc
 from sentinel_protobuf.sentinel.subscription.v2.querier_pb2 import (
     QuerySubscriptionsForNodeRequest,
 )
 from sentinel_protobuf.sentinel.subscription.v2.querier_pb2_grpc import QueryServiceStub
 from sentinel_protobuf.sentinel.subscription.v2.subscription_pb2 import NodeSubscription
+
+from utils import string_timestamp
 
 ibc = {
     "ibc/31FEE1A2A9F9C01113F90BD0BBCCE8FD6BBB8585FAF109A2101827DD1D5B95B8": "SCRT",
@@ -38,13 +38,9 @@ def subscriptions(sentnode: str) -> list:
         {
             "id": subscription.base.id,
             "address": subscription.base.address,
-            "inactive_at": datetime.fromtimestamp(
-                subscription.base.inactive_at.seconds
-            ).strftime("%m/%d/%Y, %H:%M:%S"),
+            "inactive_at": string_timestamp(subscription.base.inactive_at.seconds),
             "status": status[subscription.base.status],
-            "status_at": datetime.fromtimestamp(
-                subscription.base.status_at.seconds
-            ).strftime("%m/%d/%Y, %H:%M:%S"),
+            "status_at": string_timestamp(subscription.base.status_at.seconds),
             "node_address": subscription.node_address,
             "gigabytes": subscription.gigabytes,
             "hours": subscription.hours,

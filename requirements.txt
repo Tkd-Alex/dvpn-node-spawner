@@ -35,7 +35,7 @@ pywgkey==1.0.0
 randomname==0.2.1
 readchar==4.0.5
 requests==2.31.0
--e git+ssh://git@github.com/Tkd-Alex/cosmospy-protobuf.git@1e219833084f7f8607e60f844ece59c56e7d7764#egg=sentinel_protobuf
+sentinel-protobuf==0.3.2
 six==1.16.0
 SQLAlchemy==2.0.20
 termcolor==2.3.0

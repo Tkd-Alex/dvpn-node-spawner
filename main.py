@@ -1,5 +1,4 @@
 import copy
-import datetime
 import os
 import re
 import secrets
@@ -19,7 +18,7 @@ from handlers.Config import Config
 from handlers.SentinelCLI import SentinelCLI
 from handlers.SSH import SSH
 from onchain import subscriptions
-from utils import html_output, node_status, parse_settings
+from utils import html_output, node_status, parse_settings, string_timestamp
 
 app = Flask(__name__)
 app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///servers.sqlite3"
@@ -558,9 +557,7 @@ def handle_server(server_id: int):
             # For each container search for tcp port and then get node status
             # Estract al node config
             for container in containers:
-                container["Created"] = datetime.datetime.fromtimestamp(
-                    container["Created"]
-                ).strftime("%m/%d/%Y, %H:%M:%S")
+                container["Created"] = string_timestamp(container["Created"])
                 container["NodeStatus"] = {}
                 container["NodeSubscriptions"] = []
                 if container["State"] == "running":
