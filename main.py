@@ -612,7 +612,7 @@ def handle_server(server_id: int):
                         # The milliseconds are different, hope the second are matching each other
 
                         cmd = (
-                            f"ls -ltr --time=birth --time-style='+%Y%m%d%H%M%S' {keyring_backend_path}"
+                            f"ls -ltr --time=ctime --time-style='+%Y%m%d%H%M%S' {keyring_backend_path}"
                             + " | awk '{print $6,$7}'"
                         )
                         _, stdout, stderr = ssh.exec_command(cmd)
