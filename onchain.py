@@ -25,7 +25,6 @@ status = [
 
 
 def hex_to_bech32(prefix: str, hex_address: str) -> str:
-    print("hex_address", hex_address)
     b = bytes.fromhex(hex_address)
     data = bech32.convertbits(b, 8, 5, True)
     return bech32.bech32_encode(prefix, data)
