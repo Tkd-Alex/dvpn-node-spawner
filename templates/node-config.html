@@ -72,7 +72,7 @@
             body: JSON.stringify(formDataObj)
         })
         .then((response) => response.text())
-        .then(async (data)=> {
+        .then(async (data) => {
             console.log(data);
             $("#spinner").attr("hidden", true);
 

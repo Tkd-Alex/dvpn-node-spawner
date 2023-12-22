@@ -93,9 +93,7 @@
         </div>
       </div>
 
-      <div hidden class="mx-4 alert alert-danger d-flex align-items-center" role="alert">
-        <div id="authAlert"></div>
-      </div>
+      <div id="authAlert" hidden class="mx-4 alert alert-danger text-center" role="alert"> </div>
 
       <div class="modal-footer">
         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
@@ -187,16 +185,13 @@
           body: JSON.stringify({
             username: authenticationFields.username.value,
             password: authenticationFields.password1.value,
-            enabled: authenticationFields.enabled
+            authentication: authenticationFields.enabled.checked
           })
       })
       .then((response) => response.text())
-      .then((data)=> {
-          console.log(data);
+      .then((data) => {
           $("#spinner").attr("hidden", true);
-          const logsDiv = $(`#node-logs-${containerId}`)
-          logsDiv.html(data)
-          logsDiv.scrollTop(logsDiv.prop("scrollHeight"));
+          window.location.reload();
       })
       .catch((error) => { console.log(error); $("#spinner").attr("hidden", true); })
     }
@@ -208,11 +203,11 @@
         method: "GET"
     })
     .then((response) => response.json())
-    .then((data)=> {
+    .then((data) => {
         console.log(data);
         $("#spinner").attr("hidden", true);
         authenticationFields.username.value = data.username
-        authenticationFields.enabled.checked = data.enabled
+        authenticationFields.enabled.checked = data.authentication
     })
     .catch((error) => { console.log(error); $("#spinner").attr("hidden", true); })
   });

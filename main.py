@@ -24,6 +24,7 @@ from utils import (
     node_status,
     parse_settings,
     string_timestamp,
+    update_settings,
 )
 
 app = Flask(__name__)
@@ -91,14 +92,28 @@ def catch_all(path):
 def authentication():
     if request.method == "POST":
         pass
-        # json_request = request.get_json()
-        # action = json_request.get("action", None)
-        # action = json_request.get("action", None)
-        # action = json_request.get("action", None)
+        json_request = request.get_json()
+        username = json_request.get("username", None)
+        password = json_request.get("password", None)
+        authentication = json_request.get("authentication", False)
+        if authentication is None or password is None:
+            return make_response("Please provide all the required data", 400)
+        update_settings(username, password, authentication)
+        data = {"authentication": authentication, "username": username}
+
+        settings = parse_settings()
+        app.config["custom_authentication"] = {
+            "authentication": settings.get("authentication", False),
+            "username": settings.get("username", None),
+            "password": settings.get("password", None),
+        }
+        return make_response(jsonify(data), 200)
     else:
-        enabled = app.config["custom_authentication"].get("authentication", False)
+        authentication = app.config["custom_authentication"].get(
+            "authentication", False
+        )
         username = app.config["custom_authentication"].get("username", "")
-        data = {"enabled": enabled, "username": username}
+        data = {"authentication": authentication, "username": username}
         return make_response(jsonify(data), 200)
 
 

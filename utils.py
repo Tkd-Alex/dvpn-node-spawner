@@ -90,5 +90,17 @@ def parse_settings() -> dict:
     return json.load(open(settings_fpath, "r"))
 
 
+def update_settings(username: str, password: str, authentication: bool = False):
+    settings_fpath = os.path.join(os.getcwd(), "settings.json")
+    settings = json.load(open(settings_fpath, "r"))
+
+    settings["username"] = username
+    settings["password"] = sha256(password.encode("utf-8")).hexdigest()
+    settings["authentication"] = authentication
+
+    with open(settings_fpath, "w") as f:
+        json.dump(settings, f, indent=4)
+
+
 def string_timestamp(ts: int, fmt: str = "%m/%d/%Y, %H:%M:%S"):
     return datetime.fromtimestamp(ts).strftime(fmt)

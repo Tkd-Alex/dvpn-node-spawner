@@ -270,7 +270,7 @@
                 body: JSON.stringify({action: action})
             })
             .then((response) => response.text())
-            .then((data)=> {
+            .then((data) => {
                 console.log(data);
                 $("#spinner").attr("hidden", true);
                 spawnModal(data);
@@ -289,7 +289,7 @@
                 body: JSON.stringify({action: "logs"})
             })
             .then((response) => response.text())
-            .then((data)=> {
+            .then((data) => {
                 console.log(data);
                 $("#spinner").attr("hidden", true);
                 const logsDiv = $(`#node-logs-${containerId}`)
@@ -310,7 +310,7 @@
                 body: JSON.stringify({action: action})
             })
             .then((response) => response.text())
-            .then((data)=> {
+            .then((data) => {
                 console.log(data);
                 $("#spinner").attr("hidden", true);
                 spawnModal(data);
