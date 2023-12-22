@@ -9,7 +9,7 @@ from pathlib import PurePosixPath
 import randomname
 import toml
 from ansi2html import Ansi2HTMLConverter
-from flask import Flask, redirect, render_template, request
+from flask import Flask, jsonify, make_response, redirect, render_template, request
 from flask_httpauth import HTTPBasicAuth
 from flask_sqlalchemy import SQLAlchemy
 from pywgkey import WgPsk
@@ -84,6 +84,22 @@ class Servers(db.Model):
 @app.route("/<path:path>")
 def catch_all(path):
     return redirect("/servers", code=302)
+
+
+@app.route("/api/authentication", methods=["GET", "POST"])
+@auth.login_required
+def authentication():
+    if request.method == "POST":
+        pass
+        # json_request = request.get_json()
+        # action = json_request.get("action", None)
+        # action = json_request.get("action", None)
+        # action = json_request.get("action", None)
+    else:
+        enabled = app.config["custom_authentication"].get("authentication", False)
+        username = app.config["custom_authentication"].get("username", "")
+        data = {"enabled": enabled, "username": username}
+        return make_response(jsonify(data), 200)
 
 
 @app.route("/servers", methods=["GET", "POST"])

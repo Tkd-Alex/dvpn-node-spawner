@@ -6,7 +6,7 @@
 
     <link href="https://www.sentinel.co/images/favicon.png" rel="shortcut icon">
 
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.1/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-4bw+/aepP/YC94hEpVNVgiZdgIC5+VKNBQNGCHeKRQN+PtmoHDEXuppvnDJzQIu9" crossorigin="anonymous">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-T3c6CoIi6uLrA9TneNEoa7RxnatzjcDSCmG1MXxSR1GAsXEV/Dwwykc2MPK8M2HN" crossorigin="anonymous">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-icons/1.10.5/font/bootstrap-icons.min.css" integrity="sha512-ZnR2wlLbSbr8/c9AgLg3jQPAattCUImNsae6NHYnS9KrIwRdcY9DxFotXhNAKIKbAXlRnujIqUWoXXwqyFOeIQ==" crossorigin="anonymous" referrerpolicy="no-referrer" />
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/jquery.json-viewer@1.5.0/json-viewer/jquery.json-viewer.min.css">
 
@@ -67,6 +67,44 @@
   </div>
 </div>
 
+<div class="modal fade" id="authenticationModal" tabindex="-1" role="dialog" aria-hidden="true">
+  <div class="modal-dialog" role="document">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Change credentials</h5>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label for="authUsername">Username</label>
+          <input type="text" class="form-control" id="authUsername"  placeholder="Enter your username">
+        </div>
+        <div class="form-group">
+          <label for="authPassword1">Password</label>
+          <input type="password" class="form-control" id="authPassword1" placeholder="Enter new password">
+        </div>
+        <div class="form-group">
+          <label for="authPassword2">Confirm password</label>
+          <input type="password" class="form-control" id="authPassword2" placeholder="Confirm the new password">
+        </div>
+        <br/>
+        <div class="form-check">
+          <input type="checkbox" class="form-check-input" id="authEnabled">
+          <label class="form-check-label" for="authEnabled">Authentication enabled</label>
+        </div>
+      </div>
+
+      <div hidden class="mx-4 alert alert-danger d-flex align-items-center" role="alert">
+        <div id="authAlert"></div>
+      </div>
+
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+        <button type="button" class="btn btn-primary" onclick="updateAuthentication()">Save changes</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <body class="d-flex flex-column min-vh-100">
     <div class="container">
         <h4 class="display-4 text-primary"><i class="bi bi-node-plus"></i> NodeSpawner</h4>
@@ -82,14 +120,15 @@
       <div class="col d-flex flex-column justify-content-center">
         <span class="text-muted">Developed with <i class="bi bi-heart-fill text-primary"></i> by <a href="https://github.com/Tkd-Alex">Tkd-Alex</a> &#8226; If you want to support the project consider to delegate your DVPNs to me: <a href="https://www.mintscan.io/sentinel/validators/sentvaloper10unne9aclcdwfysj6ya5vzh7xwj3xht6jhfxn6">sentvaloper10unne9aclcdwfysj6ya5vzh7xwj3xht6jhfxn6</a></span>
       </div>
-      <div class="col-1">
+      <div class="col-1 col-1 d-flex flex-row">
+        <button data-bs-toggle="modal" data-bs-target="#authenticationModal" type="button" class="btn"><i class="bi bi-key-fill"></i></button>
         <button id="toggleDarkMode" type="button" class="btn"><i class="bi bi-moon-fill"></i></button>
       </div>
     </div>
   </div>
 </footer>
 
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.1/dist/js/bootstrap.bundle.min.js" integrity="sha384-HwwvtgBNo3bZJJLYd8oVXjrBZt8cqVSpeBNS5n7C8IVInixGAoxmnlMuBnhbgrkm" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js" integrity="sha384-C6RzsynM9kWDrMNeT87bh95OGNyZPhcTNXj1NW7RuBCsyN/o0jlpcV8Qyq46cDfL" crossorigin="anonymous"></script>
 
 <script>
   const buttonToggleDarkMode = document.getElementById('toggleDarkMode')
@@ -112,6 +151,71 @@
       localStorage.setItem("bsTheme", 'dark');
     }
   }
+
+  const authenticationFields = {
+    username: document.getElementById("authUsername"),
+    password1: document.getElementById("authPassword1"),
+    password2: document.getElementById("authPassword2"),
+    enabled: document.getElementById("authEnabled")
+  }
+
+  function updateAuthentication() {
+    if(!authenticationFields.username.value) {
+      $("#authAlert").text("Username cannot be empty")
+      $("#authAlert").removeAttr('hidden');
+    }
+    else if(!authenticationFields.password1.value) {
+      $("#authAlert").text("Please fill the password")
+      $("#authAlert").removeAttr('hidden');
+    }
+    else if(!authenticationFields.password2.value) {
+      $("#authAlert").text("Please fill the confirmation password")
+      $("#authAlert").removeAttr('hidden');
+    }
+    else if(authenticationFields.password1.value != authenticationFields.password2.value) {
+      $("#authAlert").text("Password and confirmation doesn't match")
+      $("#authAlert").removeAttr('hidden');
+    }
+    else {
+      $("#spinner").removeAttr('hidden');
+      fetch(`/api/authentication`, {
+          headers: {
+              'Accept': 'application/json',
+              'Content-Type': 'application/json'
+          },
+          method: "POST",
+          body: JSON.stringify({
+            username: authenticationFields.username.value,
+            password: authenticationFields.password1.value,
+            enabled: authenticationFields.enabled
+          })
+      })
+      .then((response) => response.text())
+      .then((data)=> {
+          console.log(data);
+          $("#spinner").attr("hidden", true);
+          const logsDiv = $(`#node-logs-${containerId}`)
+          logsDiv.html(data)
+          logsDiv.scrollTop(logsDiv.prop("scrollHeight"));
+      })
+      .catch((error) => { console.log(error); $("#spinner").attr("hidden", true); })
+    }
+  }
+
+  $('#authenticationModal').on('shown.bs.modal', function (e) {
+    $("#spinner").removeAttr('hidden');
+    fetch("/api/authentication", {
+        method: "GET"
+    })
+    .then((response) => response.json())
+    .then((data)=> {
+        console.log(data);
+        $("#spinner").attr("hidden", true);
+        authenticationFields.username.value = data.username
+        authenticationFields.enabled.checked = data.enabled
+    })
+    .catch((error) => { console.log(error); $("#spinner").attr("hidden", true); })
+  });
 
   buttonToggleDarkMode.addEventListener('click', toggleDarkMode)
 </script>
