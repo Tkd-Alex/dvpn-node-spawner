@@ -5,7 +5,13 @@
     <h4 class="text-primary">#{{ server_info._id }} - {{ server_info.username }}@{{ server_info.host }} -p {{ server_info.port }}</h4>
     <div class="row">
         <div class="col-9">
-            <span><i class="bi {{ 'bi-check-circle-fill text-success' if server_info.docker_installed == true else 'bi-x-circle-fill text-danger' }}"></i>  Docker installed</span><br>
+            <span>
+                {% if server_info.docker_warning %}
+                    <i class="bi bi-exclamation-triangle-fill text-warning" data-toggle="tooltip" data-placement="top" title="{{ server_info.docker_warning }}"></i> Docker warning
+                {% else %}
+                    <i class="bi {{ 'bi-check-circle-fill text-success' if server_info.docker_installed == true else 'bi-x-circle-fill text-danger' }}"></i>  Docker installed
+                {% endif %}
+            </span><br>
             <span><i class="bi {{ 'bi-check-circle-fill text-success' if server_info.sudoers_permission == true else 'bi-x-circle-fill text-danger' }}"></i>  Sudoers permission</span><br>
             <span><i class="bi bi-images"></i>  Docker images: {{ ', '.join(server_info.docker_images) }}</span><br>
             <span><i class="bi bi-stack"></i>  Other requirements:
@@ -40,7 +46,7 @@
                 </div>
 
                 <div class="btn-group" role="group">
-                    <button type="button" onclick="serverAction('benchmark')" {{ 'disabled' if server_info.requirements.curl == false else '' }} class="btn btn-outline-info btn-sm"><i class="bi bi-speedometer"></i> Benchmark</button>
+                    <button type="button" onclick="serverAction('benchmark')" {{ 'disabled' if server_info.requirements.curl == false else '' }} class="btn btn-outline-info btn-sm"><i class="bi bi-speedometer"></i> Benchmark (YABS)</button>
                 </div>
             </div>
         </div>

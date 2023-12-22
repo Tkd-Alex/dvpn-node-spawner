@@ -529,6 +529,7 @@ def handle_server(server_id: int):
 
     sudoers_permission = ssh.sudoers_permission()
 
+    docker_warning = None
     docker_api_version = ssh.docker_api_version().strip()
     docker_installed = (
         docker_api_version != ""
@@ -544,7 +545,13 @@ def handle_server(server_id: int):
     docker_images = []
     containers = []
     if docker_installed is True:
-        docker_client = ssh.docker(docker_api_version)
+        try:
+            docker_client = ssh.docker(docker_api_version)
+        except Exception:
+            docker_client = None
+            _, _, stderr = ssh.exec_command("docker info")
+            docker_warning = stderr.read().decode("utf-8").strip()
+
         if docker_client is not None:
             for image in docker_client.images():
                 docker_images += image["RepoTags"]
@@ -674,6 +681,7 @@ def handle_server(server_id: int):
             "requirements": requirements,
             "requirements_all": all(requirements.values()),
             "docker_installed": docker_installed,
+            "docker_warning": docker_warning,
             "containers": containers,
             "docker_images": docker_images,
             "os_architecture": os_architecture,
