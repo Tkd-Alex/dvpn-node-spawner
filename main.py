@@ -18,7 +18,13 @@ from handlers.Config import Config
 from handlers.SentinelCLI import SentinelCLI
 from handlers.SSH import SSH
 from onchain import hex_to_bech32, subscriptions
-from utils import html_output, node_status, parse_settings, string_timestamp
+from utils import (
+    html_output,
+    node_health,
+    node_status,
+    parse_settings,
+    string_timestamp,
+)
 
 app = Flask(__name__)
 app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///servers.sqlite3"
@@ -555,11 +561,13 @@ def handle_server(server_id: int):
                 if re.search(r"(dvpn-node:latest|dvpn-node)$", c["Image"]) is not None
             ]
             # For each container search for tcp port and then get node status
-            # Estract al node config
+            # Extract al node config
             for container in containers:
                 container["Created"] = string_timestamp(container["Created"])
                 container["NodeStatus"] = {}
+                container["NodeHealth"] = {}
                 container["NodeSubscriptions"] = []
+
                 if container["State"] == "running":
                     for port in container["Ports"]:
                         if port["IP"] == "0.0.0.0" and port["Type"] == "tcp":
@@ -592,6 +600,7 @@ def handle_server(server_id: int):
                             if service_type == "v2ray"
                             else service_config["listen_port"]
                         )
+                        container["NodeConfig"] = node_config
 
                         backend = node_config["keyring"]["backend"]["value"]
                         keyring_backend_path = PurePosixPath(
@@ -617,9 +626,8 @@ def handle_server(server_id: int):
                             d, v = f.split(" ")
                             if d not in keyring_births:
                                 keyring_births[d] = {"address": None, "kname": None}
-                            keyring_births[d][
-                                "address" if v.endswith(".address") else "kname"
-                            ] = v
+                            k = "address" if v.endswith(".address") else "kname"
+                            keyring_births[d][k] = v
 
                         pub_address = None
                         keyname = node_config["keyring"]["from"]["value"]
@@ -627,29 +635,32 @@ def handle_server(server_id: int):
                             if f"{keyname}.info" == keyring_births[birth]["kname"]:
                                 if keyring_births[birth]["address"] is None:
                                     # Address is none, search the next one (+1 second)
-                                    print(
-                                        f"address is None, search on another birt: {birth}"
-                                    )
                                     try:
-                                        pub_address = keyring_births[
-                                            f"{int(birth) + 1}"
-                                        ]["address"].rstrip(".address")
-                                    except Exception as e:
-                                        print(e)
+                                        next_birth = f"{int(birth) + 1}"
+                                        pub_address = keyring_births[next_birth][
+                                            "address"
+                                        ]
+                                    except Exception:
                                         pass
                                 else:
-                                    pub_address = keyring_births[birth][
-                                        "address"
-                                    ].rstrip(".address")
+                                    pub_address = keyring_births[birth]["address"]
                                 break
 
                         if pub_address is not None:
+                            pub_address = pub_address.replace(".address", "")
                             sentnode_address = hex_to_bech32("sentnode", pub_address)
+
                             container["NodeSubscriptions"] = subscriptions(
                                 sentnode_address
                             )
 
-                        container["NodeConfig"] = node_config
+                            try:
+                                container["NodeHealth"] = node_health(sentnode_address)
+                                break
+                            except Exception as e:
+                                container["NodeHealth"] = {"exception": f"{e}"}
+
+                        # Break loop for container["Mounts"]
                         break
 
                 # stats = docker_client.stats(container["Id"], decode=False, stream=False, one_shot=True)

@@ -161,6 +161,9 @@
                     <button class="nav-link" id="status-tab" data-bs-target="{{ '#status-' + container.Id[:12] }}" aria-controls="status" data-bs-toggle="tab" type="button" role="tab" aria-selected="false">Status</button>
                 </li>
                 <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="health-tab" data-bs-target="{{ '#health-' + container.Id[:12] }}" aria-controls="health" data-bs-toggle="tab" type="button" role="tab" aria-selected="false">Health</button>
+                </li>
+                <li class="nav-item" role="presentation">
                     <button class="nav-link" id="logs-tab" data-bs-target="{{ '#logs-' + container.Id[:12] }}" aria-controls="logs" data-bs-toggle="tab" type="button" role="tab" aria-selected="false" onclick="containerLogs('{{ server_info._id }}', '{{ container.Id }}')">Logs</button>
                 </li>
                 <li class="nav-item" role="presentation">
@@ -176,7 +179,10 @@
                     {% endwith %}
                 </div>
                 <div class="tab-pane fade" id="{{ 'status-' + container.Id[:12] }}" role="tabpanel" aria-labelledby="status-tab">
-                    <pre id="json-renderer-{{ container.Id }}"></pre>
+                    <pre id="json-status-renderer-{{ container.Id }}"></pre>
+                </div>
+                <div class="tab-pane fade" id="{{ 'health-' + container.Id[:12] }}" role="tabpanel" aria-labelledby="health-tab">
+                    <pre id="json-health-renderer-{{ container.Id }}"></pre>
                 </div>
                 <div class="tab-pane fade" id="{{ 'logs-' + container.Id[:12] }}" role="tabpanel" aria-labelledby="logs-tab">
                     <div style="max-height: 700px; overflow-y: auto; padding: 15px" id="node-logs-{{ container.Id }}"></div>
@@ -219,7 +225,10 @@
 
             <script>
                 var data = JSON.parse('{{ container["NodeStatus"] | tojson}}')
-                $("#json-renderer-{{ container.Id }}").jsonViewer(data, {collapsed: false, withQuotes: true, withLinks: true});
+                $("#json-status-renderer-{{ container.Id }}").jsonViewer(data, {collapsed: false, withQuotes: true, withLinks: true});
+
+                var data = JSON.parse('{{ container["NodeHealth"] | tojson}}')
+                $("#json-health-renderer-{{ container.Id }}").jsonViewer(data, {collapsed: false, withQuotes: true, withLinks: true});
             </script>
         </div>
     {% endfor %}

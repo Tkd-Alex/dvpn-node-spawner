@@ -24,8 +24,9 @@ status = [
 ]
 
 
-def hex_to_bech32(prefix: str, hex: str) -> str:
-    b = bytes.fromhex("672098d97222f5e3749aae7a254bb7d38b53df25")
+def hex_to_bech32(prefix: str, hex_address: str) -> str:
+    print("hex_address", hex_address)
+    b = bytes.fromhex(hex_address)
     data = bech32.convertbits(b, 8, 5, True)
     return bech32.bech32_encode(prefix, data)
 
