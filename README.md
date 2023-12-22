@@ -23,7 +23,7 @@ pip install -r requirements.txt
 ```
 4. Execute the script: `python main.py`
 5. Create a dashboard settings
-6. Navigate to http://127.0.0.1:3845/servers (default one, or you custom `listen_on` and `listen_port` values) and enjoy the dashboard 🥳
+6. Navigate to http://127.0.0.1:3845/servers (default one, or your custom `listen_on` and `listen_port` values) and enjoy the dashboard 🥳
 
 #### Docker
 1. Clone the repository
@@ -35,11 +35,14 @@ docker build . -t dvpn-node-spawner
 ```bash
 docker run --name node-spawner -d \
     -v $(pwd)/instance:/usr/src/app/instance \
-    -p 3845:3845 \
+    -p 8080:3845 \
     dvpn-node-spawner
 ```
 `$(pwd)` Could not work on Windows (cmd), please use the absolute path instead, like: `/path/of/your/instance:/usr/src/app/instance`
-4. Navigate to http://127.0.0.1:3845/servers (default one, or you custom `listen_on` and `listen_port` values) and enjoy the dashboard 🥳
+
+4. Navigate to http://127.0.0.1:3845/servers and enjoy the dashboard 🥳
+
+> This binds port 3845 of the container to TCP port 3845 on 127.0.0.1 of the host machine.
 
 ### Details
 #### Dashboard settings
