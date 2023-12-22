@@ -17,7 +17,7 @@ from pywgkey import WgPsk
 from handlers.Config import Config
 from handlers.SentinelCLI import SentinelCLI
 from handlers.SSH import SSH
-from onchain import subscriptions
+from onchain import hex_to_bech32, subscriptions
 from utils import html_output, node_status, parse_settings, string_timestamp
 
 app = Flask(__name__)
@@ -567,18 +567,10 @@ def handle_server(server_id: int):
                                 container["NodeStatus"] = node_status(
                                     server.host, port["PublicPort"]
                                 )
-                                # Curently we can fetch the subscrption only if the node is only
-                                # We need another way to fetch the sendnode address (maybe using the keyring)
-                                node_result = container["NodeStatus"].get("result", {})
-                                sent_node = node_result.get("address", None)
-                                container["NodeSubscriptions"] = (
-                                    []
-                                    if sent_node is None
-                                    else subscriptions(sent_node)
-                                )
                                 break
                             except Exception as e:
                                 container["NodeStatus"] = {"exception": f"{e}"}
+
                 for mount in container["Mounts"]:
                     if mount["Type"] == "bind" and mount["Source"] != "/lib/modules":
                         config_fpath = str(
@@ -600,6 +592,62 @@ def handle_server(server_id: int):
                             if service_type == "v2ray"
                             else service_config["listen_port"]
                         )
+
+                        backend = node_config["keyring"]["backend"]["value"]
+                        keyring_backend_path = PurePosixPath(
+                            mount["Source"], f"keyring-{backend}"
+                        )
+
+                        # Probably this can be done better :)
+                        # Get the birth ts of .address file and keyname.info file, group by birth and find correlation between address <-> name
+                        # The milliseconds are different, hope the second are matching each other
+
+                        cmd = (
+                            f"ls -ltr --time=birth --time-style='+%Y%m%d%H%M%S' {keyring_backend_path}"
+                            + " | awk '{print $6,$7}'"
+                        )
+                        _, stdout, stderr = ssh.exec_command(cmd)
+                        stderr.read()
+
+                        keyring_files = stdout.read().decode("utf-8")
+                        keyring_files = keyring_files.strip().split("\n")
+
+                        keyring_births = {}
+                        for f in keyring_files:
+                            d, v = f.split(" ")
+                            if d not in keyring_births:
+                                keyring_births[d] = {"address": None, "kname": None}
+                            keyring_births[d][
+                                "address" if v.endswith(".address") else "kname"
+                            ] = v
+
+                        pub_address = None
+                        keyname = node_config["keyring"]["from"]["value"]
+                        for birth in keyring_births:
+                            if f"{keyname}.info" == keyring_births[birth]["kname"]:
+                                if keyring_births[birth]["address"] is None:
+                                    # Address is none, search the next one (+1 second)
+                                    print(
+                                        f"address is None, search on another birt: {birth}"
+                                    )
+                                    try:
+                                        pub_address = keyring_births[
+                                            f"{int(birth) + 1}"
+                                        ]["address"].rstrip(".address")
+                                    except Exception as e:
+                                        print(e)
+                                        pass
+                                else:
+                                    pub_address = keyring_births[birth][
+                                        "address"
+                                    ].rstrip(".address")
+                                break
+
+                        if pub_address is not None:
+                            sentnode_address = hex_to_bech32("sentnode", pub_address)
+                            container["NodeSubscriptions"] = subscriptions(
+                                sentnode_address
+                            )
 
                         container["NodeConfig"] = node_config
                         break
