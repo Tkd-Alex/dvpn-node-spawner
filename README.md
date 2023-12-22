@@ -40,9 +40,9 @@ docker run --name node-spawner -d \
 ```
 `$(pwd)` Could not work on Windows (cmd), please use the absolute path instead, like: `/path/of/your/instance:/usr/src/app/instance`
 
-4. Navigate to http://127.0.0.1:3845/servers and enjoy the dashboard 🥳
+4. Navigate to http://127.0.0.1:8080/servers and enjoy the dashboard 🥳
 
-> This binds port 3845 of the container to TCP port 3845 on 127.0.0.1 of the host machine.
+> This binds port 3845 of the container to TCP port 8080 on 127.0.0.1 of the host machine.
 
 ### Details
 #### Dashboard settings
@@ -77,13 +77,18 @@ The dashboard was developed on free time and it may not be perfect;
 Btw, if you have already built by your self the image, the dashboard will handle only images that ends with `dvpn-node` or `dvpn-node:latest`. Images like: `sentine-dvpn-node` are also valid.
 #### Keyring
 In order to handle the keyring will be use the [Sentinel CLI client](https://github.com/sentinel-official/cli-client).
-Based on your OS, the script will automatically download the client from [freQniK release v0.3.1](https://github.com/freQniK/cli-client/releases/download/v0.3.1) (after the hub upgrade we don't have an official one). The client will work on /tmp folder, once the wallet is created / recovered the files will be uploaded on the server and the /tmp folder will be deleted.
+Based on your OS, the script will automatically download the client from [sentinel-official/cli-client release v0.3.2](https://github.com/sentinel-official/cli-client/releases/tag/v0.3.2). The client will work on /tmp folder, once the wallet is created / recovered the files will be uploaded on the server and the /tmp folder will be deleted.
 #### Know bugs / Not tested / Future improvements
 - The ssh authentication via private key was not tested
 - The keyring with backend as 'file' could have some issue linked to the password input. For example if you restart a container trougth the dashboard, probably the node will never start because is waiting for a input.
 - Currently, if you save a node configuration, the container must be manually restarted (can be done via dashboard) - We could evaluate an auto restart.
 - The [firewall](https://trinityvalidator.com/docs/sentinelguides/node/node-config#enable-firewall-ports) part is currently not managed, I found a lot of VPS/Hosting services without the ufw package or firwall rules - so, for the moment is not managed by the dasbhoard.
 - My skills on frontend side are very limited, forgive me about the simple bootstrap page (btw, dark mode 🌔 and light mode 🌞 are implemented)
+#### Dashboard auth
+After a feature request I've implement a basic auth for the dashboard. The credentials can be managed:
+- trought the bootstrap phase
+- by editing the settings.json
+- with the use of "key" icon on right-footer
 
 ### Screenshot
 ![Server list](assets/servers-dark.png)
@@ -91,3 +96,5 @@ Based on your OS, the script will automatically download the client from [freQni
 ![Node configuration](assets/node-config-dark.png)
 ![Node status](assets/node-status-dark.png)
 ![Node logs](assets/node-logs-dark.png)
+![Node health](assets/node-health-dark.png)
+![Node subscription](assets/node-subscription-dark.png)
