@@ -2,6 +2,7 @@ import json
 import os
 import re
 import ssl
+import termios
 import urllib.request
 from datetime import datetime
 from hashlib import sha256
@@ -74,7 +75,14 @@ def parse_settings() -> dict:
                 validate=lambda x, y: y == x["password"],
             ),
         ]
-        answers = inquirer.prompt(questions)
+
+        try:
+            answers = inquirer.prompt(questions)
+        except termios.error:
+            # Terminal input is no avaialabe
+            # Return settings with listen_on 0.0.0.0
+            return {"listen_on": "0.0.0.0"}
+
         if (
             answers["authentication"] is True
             and answers.get("password", None) is not None
@@ -92,7 +100,9 @@ def parse_settings() -> dict:
 
 def update_settings(username: str, password: str, authentication: bool = False):
     settings_fpath = os.path.join(os.getcwd(), "settings.json")
-    settings = json.load(open(settings_fpath, "r"))
+    settings = (
+        json.load(open(settings_fpath, "r")) if os.path.isfile(settings_fpath) else {}
+    )
 
     settings["username"] = username
     settings["password"] = sha256(password.encode("utf-8")).hexdigest()
