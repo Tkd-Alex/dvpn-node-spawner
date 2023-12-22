@@ -42,7 +42,7 @@ termcolor==2.3.0
 toml==0.10.2
 tomli==2.0.1
 typing_extensions==4.7.1
-urllib3==2.0.4
+urllib3==2.0.7
 wcwidth==0.2.6
 websocket-client==1.6.2
 Werkzeug==2.3.7
