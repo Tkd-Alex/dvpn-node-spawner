@@ -11,9 +11,7 @@ class SentinelCLI:
         # Mac: Darwin
         # Windows: Windows
         platform_name = platform.system()
-        base_url = (
-            "https://github.com/sentinel-official/cli-client/releases/download/v0.3.2"
-        )
+        base_url = "https://github.com/freQniK/cli-client/releases/download/v0.3.1"
         fnames = {
             "Linux": "sentinelcli_linux_x86_64",
             "Darwin": "sentinelcli_darwin_arm64",
