@@ -91,7 +91,6 @@ def catch_all(path):
 @auth.login_required
 def authentication():
     if request.method == "POST":
-        pass
         json_request = request.get_json()
         username = json_request.get("username", None)
         password = json_request.get("password", None)
