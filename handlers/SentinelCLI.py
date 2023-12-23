@@ -1,6 +1,7 @@
 import os
 import platform
 import stat
+import tarfile
 import urllib.request
 from subprocess import PIPE, run
 
@@ -11,18 +12,33 @@ class SentinelCLI:
         # Mac: Darwin
         # Windows: Windows
         platform_name = platform.system()
-        base_url = "https://github.com/freQniK/cli-client/releases/download/v0.3.1"
+        base_url = (
+            "https://github.com/sentinel-official/cli-client/releases/download/v0.3.2"
+        )
         fnames = {
             "Linux": "sentinelcli_linux_x86_64",
             "Darwin": "sentinelcli_darwin_arm64",
             "Windows": "sentinelcli.exe",
         }
         client_path = os.path.join(os.getcwd(), fnames[platform_name])
-        if not os.path.exists(client_path):
-            full_url = os.path.join(base_url, fnames[platform_name])
-            urllib.request.urlretrieve(full_url, client_path)
+        if os.path.exists(client_path) is False:
+            # in the latest release the linux package was provided as tar.gz
+            # https://github.com/sentinel-official/cli-client/releases/tag/v0.3.2
+            full_url = os.path.join(
+                base_url,
+                fnames[platform_name] + (".tar.gz" if platform_name == "Linux" else ""),
+            )
+            urllib.request.urlretrieve(
+                full_url, client_path + (".tar.gz" if platform_name == "Linux" else "")
+            )
 
             if platform_name != "Windows":
+                if platform_name == "Linux" and full_url.endswith(".tar.gz"):
+                    # Extract the file
+                    with tarfile.open(client_path + ".tar.gz", "r:gz") as tf:
+                        tf.extract(member="sentinelcli", path=os.getcwd())
+                    os.rename(os.path.join(os.getcwd(), "sentinelcli"), client_path)
+
                 st = os.stat(client_path)
                 os.chmod(client_path, st.st_mode | stat.S_IEXEC)
 
