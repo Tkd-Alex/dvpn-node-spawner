@@ -52,10 +52,14 @@ def subscriptions(sentnode: str) -> list:
             "gigabytes": subscription.gigabytes,
             "hours": subscription.hours,
             "deposit": {
-                "denom": ibc.get(
+                "denom": "dvpn"
+                if subscription.deposit.denom == "udvpn"
+                else ibc.get(
                     subscription.deposit.denom, subscription.deposit.denom
                 ).lower(),
-                "amount": subscription.deposit.amount,
+                "amount": round(float(subscription.deposit.amount) / 1000000, 4)
+                if subscription.deposit.denom == "udvpn"
+                else subscription.deposit.amount,
             },
         }
         for subscription in subscriptions
