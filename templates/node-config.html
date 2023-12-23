@@ -1,16 +1,16 @@
-<form id="{{ 'configForm-' + containerId[:12] if containerId is defined else 'configForm'}}">
+<form id="{{ 'configForm-' + containerId if containerId is defined else 'configForm'}}">
     {% for header in config %}
         <div class="row">
             <h5><i class="bi bi-caret-right-fill"></i> [{{ header }}]</h5>
             {% for key in config[header] %}
                 <div class="form-group col-6">
-                    <label for="{{key}}-id-{{ 'configForm-' + containerId[:12] if containerId is defined else 'configForm'}}">{{ key }} - <small class="form-text text-muted">{{config[header][key].description}}</small></label>
+                    <label for="{{key}}-id-{{ containerId if containerId is defined else 'configForm'}}">{{ key }} - <small class="form-text text-muted">{{config[header][key].description}}</small></label>
                     {% if 'options' in config[header][key] %}
                     <select
                         class="form-control"
                         name="{{header}}.{{key}}"
                         {{ 'readonly' if containerId is defined and key in readonly_values else '' }}
-                        id="{{key}}-id-{{ 'configForm-' + containerId[:12] if containerId is defined else 'configForm'}}"
+                        id="{{key}}-id-{{ containerId if containerId is defined else 'configForm'}}"
                         placeholder="{{key}}"
                     >
                         {% for option in config[header][key]['options'] %}
@@ -23,7 +23,7 @@
                             class="form-control"
                             name="{{header}}.{{key}}"
                             {{ 'readonly' if containerId is defined and key in readonly_values else '' }}
-                            id="{{key}}-id-{{ 'configForm-' + containerId[:12] if containerId is defined else 'configForm'}}"
+                            id="{{key}}-id-{{ containerId if containerId is defined else 'configForm'}}"
                             placeholder="{{key}}"
                             value="{{config[header][key].value}}"
                         >
@@ -33,7 +33,7 @@
                             class="form-control"
                             name="{{header}}.{{key}}"
                             {{ 'readonly' if containerId is defined and key in readonly_values else '' }}
-                            id="{{key}}-id-{{ 'configForm-' + containerId[:12] if containerId is defined else 'configForm'}}"
+                            id="{{key}}-id-{{ containerId if containerId is defined else 'configForm'}}"
                             placeholder="{{key}}"
                             value="{{config[header][key].value}}"
                         >
@@ -43,7 +43,7 @@
         </div>
         <br>
     {% endfor %}
-    <button type="submit" class="btn btn-primary my-1">{{ 'Save configuration' if containerId is defined else 'Spawn new node' }}</button>
+    <button id="{{ 'submitter-' + containerId if containerId is defined else 'submitter'}}" type="submit" class="btn btn-primary my-1">{{ 'Save configuration' if containerId is defined else 'Spawn new node' }}</button>
 </form>
 
 <script>
@@ -54,14 +54,20 @@
     {% endif %}
 
     var serverId = '{{ server_info._id }}' // Should be always the same when loaded
-    var formId = containerId === null ? "configForm" : `configForm-${containerId.slice(0,12)}`
+    var formId = containerId === null ? "configForm" : `configForm-${containerId}` // .slice(0,12)}`
 
     document.getElementById(formId).addEventListener('submit', event => {
+        // ups, containerId cannot be used here because is replace on each iteration
+        // we had to extract container_id from another source... please think for a workaround
+        var containerId = event.srcElement.id === "configForm" ? null : event.srcElement.id.replace("configForm-", "")
+
         event.preventDefault();
         const myFormData = new FormData(event.target);
         const formDataObj = Object.fromEntries(myFormData.entries());
+
         formDataObj.action = containerId == null ? "create-node" : "update-node-conf"
         const url = containerId == null ? window.location.href : `/api/server/${serverId}/${containerId}`
+
         $("#spinner").removeAttr('hidden');
         fetch(url, {
             headers: {
