@@ -725,22 +725,26 @@ def handle_server(server_id: int):
                                 if statistics[timeframe].get("success", False) is True:
                                     results = statistics[timeframe].get("result", [])
                                     for result in results:
-                                        container["NodeStatistics"][timeframe][
-                                            "bandwidth"
-                                        ] += float(
+                                        # bandwidth
+                                        download = float(
                                             result["session_bandwidth"]["download"]
-                                        ) + float(
+                                        )
+                                        upload = float(
                                             result["session_bandwidth"]["upload"]
                                         )
                                         container["NodeStatistics"][timeframe][
-                                            "earnings"
-                                        ] += sum(
+                                            "bandwidth"
+                                        ] += (download + upload)
+
+                                        # earning
+                                        bytes_earning = sum(
                                             [
                                                 float(e.get("amount", 0))
                                                 for e in result.get("bytes_earning", [])
                                                 if e["denom"] == "udvpn"
                                             ]
-                                        ) + sum(
+                                        )
+                                        hours_earning = sum(
                                             [
                                                 float(e.get("amount", 0))
                                                 for e in result.get("hours_earning", [])
@@ -748,14 +752,18 @@ def handle_server(server_id: int):
                                             ]
                                         )
                                         container["NodeStatistics"][timeframe][
-                                            "session_address"
-                                        ] += result.get("session_address", 0)
-                                        container["NodeStatistics"][timeframe][
-                                            "active_session"
-                                        ] += result.get("active_session", 0)
-                                        container["NodeStatistics"][timeframe][
-                                            "active_subscription"
-                                        ] += result.get("active_subscription", 0)
+                                            "earnings"
+                                        ] += (bytes_earning + hours_earning)
+
+                                        for key in [
+                                            "session_address",
+                                            "active_session",
+                                            "active_subscription",
+                                        ]:
+                                            value = result.get(key, 0)
+                                            container["NodeStatistics"][timeframe][
+                                                key
+                                            ] += value
 
                                 container["NodeStatistics"][timeframe][
                                     "bandwidth"
@@ -763,20 +771,14 @@ def handle_server(server_id: int):
                                     container["NodeStatistics"][timeframe]["bandwidth"],
                                     binary_system=False,
                                 )
-                                container["NodeStatistics"][timeframe]["earnings"] = (
-                                    str(
-                                        round(
-                                            float(
-                                                container["NodeStatistics"][timeframe][
-                                                    "earnings"
-                                                ]
-                                            )
-                                            / 1000000,
-                                            4,
-                                        )
-                                    )
-                                    + " dvpn"
-                                )
+
+                                earnings = container["NodeStatistics"][timeframe][
+                                    "earnings"
+                                ]
+                                earnings = round(float(earnings / 1000000), 4)
+                                container["NodeStatistics"][timeframe][
+                                    "earnings"
+                                ] = f"{earnings} dvpn"
 
                             try:
                                 container["NodeHealth"] = node_health(sentnode_address)
