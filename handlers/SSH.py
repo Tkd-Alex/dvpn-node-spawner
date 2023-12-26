@@ -96,8 +96,10 @@ class SSH:
             return client
         return None
 
-    def ifconfig(self, url: str = "https://ifconfig.me"):
-        _, stdout, stderr = self.client.exec_command(f"curl {url}")
+    def pubblic_ip(self):
+        _, stdout, stderr = self.client.exec_command(
+            "echo $(jq -r  '.ip' <<< `curl -s ipinfo.io`)"
+        )
         return stdout.read().decode("utf-8").strip()
 
     def yabs(self):

@@ -718,11 +718,14 @@ def handle_server(server_id: int):
     tcp_port = secrets.SystemRandom().randrange(1000, 9000)
     name = randomname.get_name()
     default_node_config["node"]["moniker"]["value"] = name
-    remote_url = f"https://{ssh.ifconfig()}:{tcp_port}"
+
+    remote_url = f"https://{ssh.pubblic_ip()}:{tcp_port}"
     default_node_config["node"]["remote_url"]["value"] = remote_url
     default_node_config["node"]["listen_on"]["value"] = f"0.0.0.0:{tcp_port}"
+
     udp_port = secrets.SystemRandom().randrange(1000, 9000)
     default_node_config["extras"]["udp_port"]["value"] = udp_port
+
     home_directory = ssh.get_home()
     default_node_config["extras"]["node_folder"]["value"] = os.path.join(
         home_directory, f".sentinel-node-{name}"
