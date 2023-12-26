@@ -239,10 +239,42 @@
                 </div>
                 <div class="tab-pane fade" id="{{ 'stats-' + container.Id[:12] }}" role="tabpanel" aria-labelledby="stats-tab">
                     <br>
+                    {% if container["SentNode"] is not none %}
+                        <p>Current stats for: <a href="https://map.sentinel.co/nodes/{{ container['SentNode'] }}" target="_blank">{{ container["SentNode"] }}</a> are taken from: <a href="https://nodes.sentinel.co/" target="_blank">https://nodes.sentinel.co/</a></p>
+                    {% endif %}
+                    {% if 'global' in container["NodeStatistics"] %}
                     <div class="row">
-                        {% if container["SentNode"] is not none %}
-                            <p>Current stats for: <a href="https://map.sentinel.co/nodes/{{ container['SentNode'] }}" target="_blank">{{ container["SentNode"] }}</a> are taken from: <a href="https://nodes.sentinel.co/" target="_blank">https://nodes.sentinel.co/</a></p>
-                        {% endif %}
+                        <div class="col-12">
+                            <div class="card">
+                                <div class="card-body">
+                                    <h4>Global stats</h4>
+                                    <div class="row">
+                                        <div class="col-4">
+                                            <h5>Earnings</h5>
+                                            <p class="mb-0">From bytes: <b>{{ container["NodeStatistics"]["global"]["earnings_bytes"] }}</b></p>
+                                            <p class="mb-0">From hours: <b>{{ container["NodeStatistics"]["global"]["earnings_hours"] }}</b></p>
+                                            <p class="mb-0">Total: <b>{{ container["NodeStatistics"]["global"]["earnings"] }}</b></p>
+                                        </div>
+                                        <div class="col-4">
+                                            <h5>Bandwidth provided</h5>
+                                            <p class="mb-0">Upload: <b>&uarr; {{ container["NodeStatistics"]["global"]["upload"] }}</b></p>
+                                            <p class="mb-0">Download: <b>&darr; {{ container["NodeStatistics"]["global"]["download"] }}</b></p>
+                                            <p class="mb-0">Total: <b>{{ container["NodeStatistics"]["global"]["bandwidth"] }}</b></p>
+                                        </div>
+                                        <div class="col-4">
+                                            <h5>Other data</h5>
+                                            <p class="mb-0">Unique users: <b>{{ container["NodeStatistics"]["global"]["session_address"] }}</b></p>
+                                            <p class="mb-0">Active sessions: <b>{{ container["NodeStatistics"]["global"]["active_session"] }}</b></p>
+                                            <p class="mb-0">Active subscrition: <b>{{ container["NodeStatistics"]["global"]["active_subscription"] }}</b></p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <br>
+                    {% endif %}
+                    <div class="row">
                         <div class="col-4">
                             <div class="card">
                                 <div class="card-body">

@@ -703,7 +703,6 @@ def handle_server(server_id: int):
                             with concurrent.futures.ThreadPoolExecutor(
                                 max_workers=3
                             ) as executor:
-                                # Start the load operations and mark each future with its URL
                                 futures = {
                                     executor.submit(
                                         node_stats, sentnode_address, timeframe
@@ -779,6 +778,84 @@ def handle_server(server_id: int):
                                 container["NodeStatistics"][timeframe][
                                     "earnings"
                                 ] = f"{earnings} dvpn"
+
+                            # container["NodeStatistics"]["global"]
+                            global_stats = node_stats(sentnode_address, "year", limit=0)
+                            container["NodeStatistics"]["global"] = {
+                                "upload": 0,
+                                "download": 0,
+                                "bandwidth": 0,
+                                "earnings_bytes": 0,
+                                "earnings_hours": 0,
+                                "earnings": 0,
+                                "session_address": 0,
+                                "active_session": 0,
+                                "active_subscription": 0,
+                            }
+                            if global_stats.get("success", False) is True:
+                                results = statistics[timeframe].get("result", [])
+                                for result in results:
+                                    # bandwidth
+                                    for kind in ["download", "upload"]:
+                                        container["NodeStatistics"]["global"][
+                                            kind
+                                        ] += float(result["session_bandwidth"][kind])
+                                        container["NodeStatistics"]["global"][
+                                            "bandwidth"
+                                        ] += float(result["session_bandwidth"][kind])
+
+                                    # earning
+                                    for kind in ["bytes", "hours"]:
+                                        earning = sum(
+                                            [
+                                                float(e.get("amount", 0))
+                                                for e in result.get(
+                                                    f"{kind}_earning", []
+                                                )
+                                                if e["denom"] == "udvpn"
+                                            ]
+                                        )
+                                        container["NodeStatistics"]["global"][
+                                            f"earnings_{kind}"
+                                        ] += earning
+                                        container["NodeStatistics"]["global"][
+                                            "earnings"
+                                        ] += earning
+
+                                    for key in [
+                                        "session_address",
+                                        "active_session",
+                                        "active_subscription",
+                                    ]:
+                                        value = result.get(key, 0)
+                                        container["NodeStatistics"]["global"][
+                                            key
+                                        ] += value
+
+                                    for kind in ["download", "upload", "bandwidth"]:
+                                        container["NodeStatistics"]["global"][
+                                            kind
+                                        ] = format_file_size(
+                                            container["NodeStatistics"]["global"][kind],
+                                            binary_system=False,
+                                        )
+
+                                    for kind in ["bytes", "hours"]:
+                                        earnings = container["NodeStatistics"][
+                                            "global"
+                                        ][f"earnings_{kind}"]
+                                        earnings = round(float(earnings / 1000000), 4)
+                                        container["NodeStatistics"]["global"][
+                                            f"earnings_{kind}"
+                                        ] = f"{earnings} dvpn"
+
+                                    earnings = container["NodeStatistics"]["global"][
+                                        "earnings"
+                                    ]
+                                    earnings = round(float(earnings / 1000000), 4)
+                                    container["NodeStatistics"]["global"][
+                                        "earnings"
+                                    ] = f"{earnings} dvpn"
 
                             try:
                                 container["NodeHealth"] = node_health(sentnode_address)
