@@ -175,6 +175,9 @@
                 <li class="nav-item" role="presentation">
                     <button class="nav-link" id="subscriptions-tab" data-bs-target="{{ '#subscriptions-' + container.Id[:12] }}" aria-controls="subscriptions" data-bs-toggle="tab" type="button" role="tab" aria-selected="false">Subscriptions</button>
                 </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="stats-tab" data-bs-target="{{ '#stats-' + container.Id[:12] }}" aria-controls="stats" data-bs-toggle="tab" type="button" role="tab" aria-selected="false">Stats</button>
+                </li>
             </ul>
 
             <div class="tab-content">
@@ -185,15 +188,22 @@
                     {% endwith %}
                 </div>
                 <div class="tab-pane fade" id="{{ 'status-' + container.Id[:12] }}" role="tabpanel" aria-labelledby="status-tab">
+                    <br>
                     <pre id="json-status-renderer-{{ container.Id }}"></pre>
                 </div>
                 <div class="tab-pane fade" id="{{ 'health-' + container.Id[:12] }}" role="tabpanel" aria-labelledby="health-tab">
+                    <br>
                     <pre id="json-health-renderer-{{ container.Id }}"></pre>
                 </div>
                 <div class="tab-pane fade" id="{{ 'logs-' + container.Id[:12] }}" role="tabpanel" aria-labelledby="logs-tab">
+                    <br>
                     <div style="max-height: 700px; overflow-y: auto; padding: 15px" id="node-logs-{{ container.Id }}"></div>
                 </div>
                 <div class="tab-pane fade" id="{{ 'subscriptions-' + container.Id[:12] }}" role="tabpanel" aria-labelledby="subscriptions-tab">
+                    <br>
+                    {% if container["SentNode"] is not none %}
+                        <p>Subscriptions for: <a href="https://map.sentinel.co/nodes/{{ container['SentNode'] }}" target="_blank">{{ container["SentNode"] }}</a> are scraped from chain</p>
+                    {% endif %}
                     <div>
                         <table class="table">
                             <thead>
@@ -225,6 +235,74 @@
                                 {% endfor %}
                             </tbody>
                         </table>
+                    </div>
+                </div>
+                <div class="tab-pane fade" id="{{ 'stats-' + container.Id[:12] }}" role="tabpanel" aria-labelledby="stats-tab">
+                    <br>
+                    <div class="row">
+                        {% if container["SentNode"] is not none %}
+                            <p>Current stats for: <a href="https://map.sentinel.co/nodes/{{ container['SentNode'] }}" target="_blank">{{ container["SentNode"] }}</a> are taken from: <a href="https://nodes.sentinel.co/" target="_blank">https://nodes.sentinel.co/</a></p>
+                        {% endif %}
+                        <div class="col-4">
+                            <div class="card">
+                                <div class="card-body">
+                                    <h4>Today Stats</h4>
+                                    {% if 'day' in container["NodeStatistics"] %}
+                                        <p class="mb-0">Earnings: <b>{{ container["NodeStatistics"]["day"]["earnings"] }}</b></p>
+                                        <p class="mb-0">Bandwidth provided: <b>{{ container["NodeStatistics"]["day"]["bandwidth"] }}</b></p>
+                                        <p class="mb-0">Unique users: <b>{{ container["NodeStatistics"]["day"]["session_address"] }}</b></p>
+                                        <p class="mb-0">Active sessions: <b>{{ container["NodeStatistics"]["day"]["active_session"] }}</b></p>
+                                        <p class="mb-0">Active subscrition: <b>{{ container["NodeStatistics"]["day"]["active_subscription"] }}</b></p>
+                                    {% else %}
+                                        <p class="mb-0">Earnings: <b>N/A</b></p>
+                                        <p class="mb-0">Bandwidth provided: <b>N/A</b></p>
+                                        <p class="mb-0">Unique users: <b>N/A</b></p>
+                                        <p class="mb-0">Active sessions: <b>N/A</b></p>
+                                        <p class="mb-0">Active subscrition: <b>N/A</b></p>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-4">
+                            <div class="card">
+                                <div class="card-body">
+                                    <h4>This Week Stats</h4>
+                                    {% if 'week' in container["NodeStatistics"] %}
+                                        <p class="mb-0">Earnings: <b>{{ container["NodeStatistics"]["week"]["earnings"] }}</b></p>
+                                        <p class="mb-0">Bandwidth provided: <b>{{ container["NodeStatistics"]["week"]["bandwidth"] }}</b></p>
+                                        <p class="mb-0">Unique users: <b>{{ container["NodeStatistics"]["week"]["session_address"] }}</b></p>
+                                        <p class="mb-0">Active sessions: <b>{{ container["NodeStatistics"]["week"]["active_session"] }}</b></p>
+                                        <p class="mb-0">Active subscrition: <b>{{ container["NodeStatistics"]["week"]["active_subscription"] }}</b></p>
+                                    {% else %}
+                                        <p class="mb-0">Earnings: <b>N/A</b></p>
+                                        <p class="mb-0">Bandwidth provided: <b>N/A</b></p>
+                                        <p class="mb-0">Unique users: <b>N/A</b></p>
+                                        <p class="mb-0">Active sessions: <b>N/A</b></p>
+                                        <p class="mb-0">Active subscrition: <b>N/A</b></p>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-4">
+                            <div class="card">
+                                <div class="card-body">
+                                    <h4>This Month Stats</h4>
+                                    {% if 'month' in container["NodeStatistics"] %}
+                                        <p class="mb-0">Earnings: <b>{{ container["NodeStatistics"]["month"]["earnings"] }}</b></p>
+                                        <p class="mb-0">Bandwidth provided: <b>{{ container["NodeStatistics"]["month"]["bandwidth"] }}</b></p>
+                                        <p class="mb-0">Unique users: <b>{{ container["NodeStatistics"]["month"]["session_address"] }}</b></p>
+                                        <p class="mb-0">Active sessions: <b>{{ container["NodeStatistics"]["month"]["active_session"] }}</b></p>
+                                        <p class="mb-0">Active subscrition: <b>{{ container["NodeStatistics"]["month"]["active_subscription"] }}</b></p>
+                                    {% else %}
+                                        <p class="mb-0">Earnings: <b>N/A</b></p>
+                                        <p class="mb-0">Bandwidth provided: <b>N/A</b></p>
+                                        <p class="mb-0">Unique users: <b>N/A</b></p>
+                                        <p class="mb-0">Active sessions: <b>N/A</b></p>
+                                        <p class="mb-0">Active subscrition: <b>N/A</b></p>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>

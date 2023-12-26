@@ -1,3 +1,4 @@
+import concurrent.futures
 import copy
 import os
 import re
@@ -19,8 +20,10 @@ from handlers.SentinelCLI import SentinelCLI
 from handlers.SSH import SSH
 from onchain import hex_to_bech32, subscriptions
 from utils import (
+    format_file_size,
     html_output,
     node_health,
+    node_stats,
     node_status,
     parse_settings,
     string_timestamp,
@@ -604,6 +607,8 @@ def handle_server(server_id: int):
                 container["NodeStatus"] = {}
                 container["NodeHealth"] = {}
                 container["NodeSubscriptions"] = []
+                container["NodeStatistics"] = {}
+                container["SentNode"] = None
 
                 if container["State"] == "running":
                     for port in container["Ports"]:
@@ -687,9 +692,91 @@ def handle_server(server_id: int):
                             pub_address = pub_address.replace(".address", "")
                             sentnode_address = hex_to_bech32("sentnode", pub_address)
 
+                            container["SentNode"] = sentnode_address
+
                             container["NodeSubscriptions"] = subscriptions(
                                 sentnode_address
                             )
+
+                            statistics = {}
+                            timeframes = ["day", "week", "month"]
+                            with concurrent.futures.ThreadPoolExecutor(
+                                max_workers=3
+                            ) as executor:
+                                # Start the load operations and mark each future with its URL
+                                futures = {
+                                    executor.submit(
+                                        node_stats, sentnode_address, timeframe
+                                    ): timeframe
+                                    for timeframe in timeframes
+                                }
+                                for future in concurrent.futures.as_completed(futures):
+                                    timeframe = futures[future]
+                                    statistics[timeframe] = future.result()
+
+                            for timeframe in statistics:
+                                container["NodeStatistics"][timeframe] = {
+                                    "bandwidth": 0,
+                                    "earnings": 0,
+                                    "session_address": 0,
+                                    "active_session": 0,
+                                    "active_subscription": 0,
+                                }
+                                if statistics[timeframe].get("success", False) is True:
+                                    results = statistics[timeframe].get("result", [])
+                                    for result in results:
+                                        container["NodeStatistics"][timeframe][
+                                            "bandwidth"
+                                        ] += float(
+                                            result["session_bandwidth"]["download"]
+                                        ) + float(
+                                            result["session_bandwidth"]["upload"]
+                                        )
+                                        container["NodeStatistics"][timeframe][
+                                            "earnings"
+                                        ] += sum(
+                                            [
+                                                float(e.get("amount", 0))
+                                                for e in result.get("bytes_earning", [])
+                                                if e["denom"] == "udvpn"
+                                            ]
+                                        ) + sum(
+                                            [
+                                                float(e.get("amount", 0))
+                                                for e in result.get("hours_earning", [])
+                                                if e["denom"] == "udvpn"
+                                            ]
+                                        )
+                                        container["NodeStatistics"][timeframe][
+                                            "session_address"
+                                        ] += result.get("session_address", 0)
+                                        container["NodeStatistics"][timeframe][
+                                            "active_session"
+                                        ] += result.get("active_session", 0)
+                                        container["NodeStatistics"][timeframe][
+                                            "active_subscription"
+                                        ] += result.get("active_subscription", 0)
+
+                                container["NodeStatistics"][timeframe][
+                                    "bandwidth"
+                                ] = format_file_size(
+                                    container["NodeStatistics"][timeframe]["bandwidth"],
+                                    binary_system=False,
+                                )
+                                container["NodeStatistics"][timeframe]["earnings"] = (
+                                    str(
+                                        round(
+                                            float(
+                                                container["NodeStatistics"][timeframe][
+                                                    "earnings"
+                                                ]
+                                            )
+                                            / 1000000,
+                                            4,
+                                        )
+                                    )
+                                    + " dvpn"
+                                )
 
                             try:
                                 container["NodeHealth"] = node_health(sentnode_address)

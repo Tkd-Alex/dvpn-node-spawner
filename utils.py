@@ -30,6 +30,24 @@ def node_health(sentnode: str) -> dict:
         return json.load(f)
 
 
+def node_stats(
+    sentnode: str,
+    timeframe: str,
+    sort: str = "-timestamp",
+    limit: int = 1,
+    skip: int = 0,
+) -> dict:
+    ctx = ssl.create_default_context()
+    ctx.check_hostname = False
+    ctx.verify_mode = ssl.CERT_NONE
+    with urllib.request.urlopen(
+        f"https://api.explorer.sentinel.co/v2/nodes/{sentnode}/statistics?sort={sort}&limit={limit}&skip={skip}&timeframe={timeframe}",
+        timeout=60,
+        context=ctx,
+    ) as f:
+        return json.load(f)
+
+
 def html_output(text: str) -> str:
     text = re.sub(r"\n\s*\n", "\n\n", text)
     text = re.sub(" +", " ", text)
@@ -114,3 +132,20 @@ def update_settings(username: str, password: str, authentication: bool = False):
 
 def string_timestamp(ts: int, fmt: str = "%m/%d/%Y, %H:%M:%S"):
     return datetime.fromtimestamp(ts).strftime(fmt)
+
+
+# https://lindevs.com/code-snippets/convert-file-size-in-bytes-into-human-readable-string-using-python
+def format_file_size(size, decimals=2, binary_system=True):
+    if binary_system:
+        units = ["B", "KiB", "MiB", "GiB", "TiB", "PiB", "EiB", "ZiB"]
+        largest_unit = "YiB"
+        step = 1024
+    else:
+        units = ["B", "kB", "MB", "GB", "TB", "PB", "EB", "ZB"]
+        largest_unit = "YB"
+        step = 1000
+    for unit in units:
+        if size < step:
+            return ("%." + str(decimals) + "f %s") % (size, unit)
+        size /= step
+    return ("%." + str(decimals) + "f %s") % (size, largest_unit)
