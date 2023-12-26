@@ -649,7 +649,10 @@ def handle_server(server_id: int):
                             mount["Source"], f"keyring-{backend}"
                         )
 
-                        pub_address = ssh.find_pub_address(keyring_backend_path)
+                        pub_address = ssh.find_pub_address(
+                            keyring_backend_path,
+                            keyname=node_config["keyring"]["from"]["value"],
+                        )
                         if pub_address is not None:
                             pub_address = pub_address.replace(".address", "")
                             container["SentNode"] = hex_to_bech32(
