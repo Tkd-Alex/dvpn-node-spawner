@@ -1,9 +1,9 @@
-import concurrent.futures
 import copy
 import os
 import re
 import secrets
 import tempfile
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from hashlib import sha256
 from pathlib import PurePosixPath
 
@@ -20,7 +20,7 @@ from handlers.SentinelCLI import SentinelCLI
 from handlers.SSH import SSH
 from onchain import hex_to_bech32, subscriptions
 from utils import (
-    format_file_size,
+    aggregate_node_stats,
     html_output,
     node_health,
     node_stats,
@@ -649,222 +649,49 @@ def handle_server(server_id: int):
                             mount["Source"], f"keyring-{backend}"
                         )
 
-                        # Probably this can be done better :)
-                        # Get the birth ts of .address file and keyname.info file, group by birth and find correlation between address <-> name
-                        # The milliseconds are different, hope the second are matching each other
-
-                        cmd = (
-                            f"ls -ltr --time=ctime --time-style='+%Y%m%d%H%M%S' {keyring_backend_path}"
-                            + " | awk '{print $6,$7}'"
-                        )
-                        _, stdout, stderr = ssh.exec_command(cmd)
-                        stderr.read()
-
-                        keyring_files = stdout.read().decode("utf-8")
-                        keyring_files = keyring_files.strip().split("\n")
-
-                        keyring_births = {}
-                        for f in keyring_files:
-                            d, v = f.split(" ")
-                            if d not in keyring_births:
-                                keyring_births[d] = {"address": None, "kname": None}
-                            k = "address" if v.endswith(".address") else "kname"
-                            keyring_births[d][k] = v
-
-                        pub_address = None
-                        keyname = node_config["keyring"]["from"]["value"]
-                        for birth in keyring_births:
-                            if f"{keyname}.info" == keyring_births[birth]["kname"]:
-                                if keyring_births[birth]["address"] is None:
-                                    # Address is none, search the next one (+1 second)
-                                    try:
-                                        next_birth = f"{int(birth) + 1}"
-                                        pub_address = keyring_births[next_birth][
-                                            "address"
-                                        ]
-                                    except Exception:
-                                        pass
-                                else:
-                                    pub_address = keyring_births[birth]["address"]
-                                break
-
+                        pub_address = ssh.find_pub_address(keyring_backend_path)
                         if pub_address is not None:
                             pub_address = pub_address.replace(".address", "")
-                            sentnode_address = hex_to_bech32("sentnode", pub_address)
-
-                            container["SentNode"] = sentnode_address
-
-                            container["NodeSubscriptions"] = subscriptions(
-                                sentnode_address
+                            container["SentNode"] = hex_to_bech32(
+                                "sentnode", pub_address
                             )
-
-                            statistics = {}
-                            timeframes = ["day", "week", "month"]
-                            with concurrent.futures.ThreadPoolExecutor(
-                                max_workers=3
-                            ) as executor:
-                                futures = {
-                                    executor.submit(
-                                        node_stats, sentnode_address, timeframe
-                                    ): timeframe
-                                    for timeframe in timeframes
-                                }
-                                for future in concurrent.futures.as_completed(futures):
-                                    timeframe = futures[future]
-                                    statistics[timeframe] = future.result()
-
-                            for timeframe in statistics:
-                                container["NodeStatistics"][timeframe] = {
-                                    "bandwidth": 0,
-                                    "earnings": 0,
-                                    "session_address": 0,
-                                    "active_session": 0,
-                                    "active_subscription": 0,
-                                }
-                                if statistics[timeframe].get("success", False) is True:
-                                    results = statistics[timeframe].get("result", [])
-                                    for result in results:
-                                        # bandwidth
-                                        download = float(
-                                            result["session_bandwidth"]["download"]
-                                        )
-                                        upload = float(
-                                            result["session_bandwidth"]["upload"]
-                                        )
-                                        container["NodeStatistics"][timeframe][
-                                            "bandwidth"
-                                        ] += (download + upload)
-
-                                        # earning
-                                        bytes_earning = sum(
-                                            [
-                                                float(e.get("amount", 0))
-                                                for e in result.get("bytes_earning", [])
-                                                if e["denom"] == "udvpn"
-                                            ]
-                                        )
-                                        hours_earning = sum(
-                                            [
-                                                float(e.get("amount", 0))
-                                                for e in result.get("hours_earning", [])
-                                                if e["denom"] == "udvpn"
-                                            ]
-                                        )
-                                        container["NodeStatistics"][timeframe][
-                                            "earnings"
-                                        ] += (bytes_earning + hours_earning)
-
-                                        for key in [
-                                            "session_address",
-                                            "active_session",
-                                            "active_subscription",
-                                        ]:
-                                            value = result.get(key, 0)
-                                            container["NodeStatistics"][timeframe][
-                                                key
-                                            ] += value
-
-                                container["NodeStatistics"][timeframe][
-                                    "bandwidth"
-                                ] = format_file_size(
-                                    container["NodeStatistics"][timeframe]["bandwidth"],
-                                    binary_system=False,
-                                )
-
-                                earnings = container["NodeStatistics"][timeframe][
-                                    "earnings"
-                                ]
-                                earnings = round(float(earnings / 1000000), 4)
-                                container["NodeStatistics"][timeframe][
-                                    "earnings"
-                                ] = f"{earnings} dvpn"
-
-                            # container["NodeStatistics"]["global"]
-                            global_stats = node_stats(sentnode_address, "year", limit=0)
-                            container["NodeStatistics"]["global"] = {
-                                "upload": 0,
-                                "download": 0,
-                                "bandwidth": 0,
-                                "earnings_bytes": 0,
-                                "earnings_hours": 0,
-                                "earnings": 0,
-                                "session_address": 0,
-                                "active_session": 0,
-                                "active_subscription": 0,
-                            }
-                            if global_stats.get("success", False) is True:
-                                results = statistics[timeframe].get("result", [])
-                                for result in results:
-                                    # bandwidth
-                                    for kind in ["download", "upload"]:
-                                        container["NodeStatistics"]["global"][
-                                            kind
-                                        ] += float(result["session_bandwidth"][kind])
-                                        container["NodeStatistics"]["global"][
-                                            "bandwidth"
-                                        ] += float(result["session_bandwidth"][kind])
-
-                                    # earning
-                                    for kind in ["bytes", "hours"]:
-                                        earning = sum(
-                                            [
-                                                float(e.get("amount", 0))
-                                                for e in result.get(
-                                                    f"{kind}_earning", []
-                                                )
-                                                if e["denom"] == "udvpn"
-                                            ]
-                                        )
-                                        container["NodeStatistics"]["global"][
-                                            f"earnings_{kind}"
-                                        ] += earning
-                                        container["NodeStatistics"]["global"][
-                                            "earnings"
-                                        ] += earning
-
-                                    for key in [
-                                        "session_address",
-                                        "active_session",
-                                        "active_subscription",
-                                    ]:
-                                        value = result.get(key, 0)
-                                        container["NodeStatistics"]["global"][
-                                            key
-                                        ] += value
-
-                                    for kind in ["download", "upload", "bandwidth"]:
-                                        container["NodeStatistics"]["global"][
-                                            kind
-                                        ] = format_file_size(
-                                            container["NodeStatistics"]["global"][kind],
-                                            binary_system=False,
-                                        )
-
-                                    for kind in ["bytes", "hours"]:
-                                        earnings = container["NodeStatistics"][
-                                            "global"
-                                        ][f"earnings_{kind}"]
-                                        earnings = round(float(earnings / 1000000), 4)
-                                        container["NodeStatistics"]["global"][
-                                            f"earnings_{kind}"
-                                        ] = f"{earnings} dvpn"
-
-                                    earnings = container["NodeStatistics"]["global"][
-                                        "earnings"
-                                    ]
-                                    earnings = round(float(earnings / 1000000), 4)
-                                    container["NodeStatistics"]["global"][
-                                        "earnings"
-                                    ] = f"{earnings} dvpn"
-
-                            try:
-                                container["NodeHealth"] = node_health(sentnode_address)
-                                break
-                            except Exception as e:
-                                container["NodeHealth"] = {"exception": f"{e}"}
 
                         # Break loop for container["Mounts"]
                         break
+
+                if container["SentNode"] is not None:
+                    container["NodeSubscriptions"] = subscriptions(
+                        container["SentNode"]
+                    )
+
+                    statistics = {}
+                    timeframes = ["day", "week", "month"]
+                    with ThreadPoolExecutor(max_workers=3) as executor:
+                        futures = {
+                            executor.submit(
+                                node_stats, container["SentNode"], timeframe
+                            ): timeframe
+                            for timeframe in timeframes
+                        }
+                        for future in as_completed(futures):
+                            timeframe = futures[future]
+                            statistics[timeframe] = future.result()
+
+                    for timeframe in statistics:
+                        container["NodeStatistics"][timeframe] = aggregate_node_stats(
+                            statistics[timeframe]
+                        )
+
+                    global_stats = node_stats(container["SentNode"], "year", limit=0)
+                    container["NodeStatistics"]["global"] = aggregate_node_stats(
+                        global_stats
+                    )
+
+                    try:
+                        container["NodeHealth"] = node_health(container["SentNode"])
+                        break
+                    except Exception as e:
+                        container["NodeHealth"] = {"exception": f"{e}"}
 
                 # stats = docker_client.stats(container["Id"], decode=False, stream=False, one_shot=True)
                 # container.update({"Stats": stats})

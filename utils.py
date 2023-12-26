@@ -149,3 +149,64 @@ def format_file_size(size, decimals=2, binary_system=True):
             return ("%." + str(decimals) + "f %s") % (size, unit)
         size /= step
     return ("%." + str(decimals) + "f %s") % (size, largest_unit)
+
+
+def aggregate_node_stats(statistics) -> dict:
+    statistics_count = {
+        "upload": 0,
+        "download": 0,
+        "bandwidth": 0,
+        "earnings_bytes": 0,
+        "earnings_hours": 0,
+        "earnings": 0,
+        "session_address": 0,
+        "active_session": 0,
+        "active_subscription": 0,
+    }
+    if statistics.get("success", False) is True:
+        results = statistics.get("result", [])
+        for result in results:
+            # bandwidth
+            for kind in ["download", "upload"]:
+                statistics_count[kind] += float(result["session_bandwidth"][kind])
+                statistics_count["bandwidth"] += float(
+                    result["session_bandwidth"][kind]
+                )
+
+            # earning (only udvpn)
+            for kind in ["bytes", "hours"]:
+                earning = sum(
+                    [
+                        float(e.get("amount", 0))
+                        for e in result.get(f"{kind}_earning", [])
+                        if e["denom"] == "udvpn"
+                    ]
+                )
+                statistics_count[f"earnings_{kind}"] += earning
+                statistics_count["earnings"] += earning
+
+            for key in [
+                "session_address",
+                "active_session",
+                "active_subscription",
+            ]:
+                value = result.get(key, 0)
+                statistics_count[key] += value
+
+        # Convert to human readable
+        for kind in ["download", "upload", "bandwidth"]:
+            statistics_count[kind] = format_file_size(
+                statistics_count[kind], binary_system=False
+            )
+
+        # convert earning to dvpn
+        for kind in ["bytes", "hours"]:
+            earnings = statistics_count[f"earnings_{kind}"]
+            earnings = round(float(earnings / 1000000), 4)
+            statistics_count[f"earnings_{kind}"] = f"{earnings} dvpn"
+
+        earnings = statistics_count["earnings"]
+        earnings = round(float(earnings / 1000000), 4)
+        statistics_count["earnings"] = f"{earnings} dvpn"
+
+    return statistics_count

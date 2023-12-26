@@ -142,3 +142,41 @@ class SSH:
                     inv_commands.get(requirement, requirement)
                 ] = path != "" and path.endswith(requirement)
         return requirements
+
+    def find_pub_address(self, keyring_backend_path: str, keyname: str) -> str:
+        # Probably this can be done better :)
+        # Get the birth ts of .address file and keyname.info file, group by birth and find correlation between address <-> name
+        # The milliseconds are different, hope the second are matching each other
+
+        cmd = (
+            f"ls -ltr --time=ctime --time-style='+%Y%m%d%H%M%S' {keyring_backend_path}"
+            + " | awk '{print $6,$7}'"
+        )
+        _, stdout, stderr = self.client.exec_command(cmd)
+        stderr.read()
+
+        keyring_files = stdout.read().decode("utf-8")
+        keyring_files = keyring_files.strip().split("\n")
+
+        keyring_births = {}
+        for f in keyring_files:
+            d, v = f.split(" ")
+            if d not in keyring_births:
+                keyring_births[d] = {"address": None, "kname": None}
+            k = "address" if v.endswith(".address") else "kname"
+            keyring_births[d][k] = v
+
+        pub_address = None
+        for birth in keyring_births:
+            if f"{keyname}.info" == keyring_births[birth]["kname"]:
+                if keyring_births[birth]["address"] is None:
+                    # Address is none, search the next one (+1 second)
+                    try:
+                        next_birth = f"{int(birth) + 1}"
+                        pub_address = keyring_births[next_birth]["address"]
+                    except Exception:
+                        pass
+                else:
+                    pub_address = keyring_births[birth]["address"]
+                break
+        return pub_address
