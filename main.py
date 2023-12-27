@@ -617,6 +617,12 @@ def handle_server(server_id: int):
                                 container["NodeStatus"] = node_status(
                                     server.host, port["PublicPort"]
                                 )
+                                # Extract SentNode directly from status page
+                                container["SentNode"] = (
+                                    container["NodeStatus"]
+                                    .get("result", {})
+                                    .get("address", None)
+                                )
                                 break
                             except Exception as e:
                                 container["NodeStatus"] = {"exception": f"{e}"}
@@ -649,15 +655,17 @@ def handle_server(server_id: int):
                             mount["Source"], f"keyring-{backend}"
                         )
 
-                        pub_address = ssh.find_pub_address(
-                            keyring_backend_path,
-                            keyname=node_config["keyring"]["from"]["value"],
-                        )
-                        if pub_address is not None:
-                            pub_address = pub_address.replace(".address", "")
-                            container["SentNode"] = hex_to_bech32(
-                                "sentnode", pub_address
+                        # Else we already have the SentNode
+                        if container["SentNode"] is None:
+                            pub_address = ssh.find_pub_address(
+                                keyring_backend_path,
+                                keyname=node_config["keyring"]["from"]["value"],
                             )
+                            if pub_address is not None:
+                                pub_address = pub_address.replace(".address", "")
+                                container["SentNode"] = hex_to_bech32(
+                                    "sentnode", pub_address
+                                )
 
                         # Break loop for container["Mounts"]
                         break
@@ -678,21 +686,28 @@ def handle_server(server_id: int):
                         }
                         for future in as_completed(futures):
                             timeframe = futures[future]
-                            statistics[timeframe] = future.result()
+                            try:
+                                statistics[timeframe] = future.result()
+                            except Exception:
+                                pass
 
                     for timeframe in statistics:
                         container["NodeStatistics"][timeframe] = aggregate_node_stats(
                             statistics[timeframe]
                         )
 
-                    global_stats = node_stats(container["SentNode"], "year", limit=0)
-                    container["NodeStatistics"]["global"] = aggregate_node_stats(
-                        global_stats
-                    )
+                    try:
+                        global_stats = node_stats(
+                            container["SentNode"], "year", limit=0
+                        )
+                        container["NodeStatistics"]["global"] = aggregate_node_stats(
+                            global_stats
+                        )
+                    except Exception:
+                        pass
 
                     try:
                         container["NodeHealth"] = node_health(container["SentNode"])
-                        break
                     except Exception as e:
                         container["NodeHealth"] = {"exception": f"{e}"}
 

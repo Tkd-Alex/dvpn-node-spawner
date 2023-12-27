@@ -168,10 +168,11 @@ def aggregate_node_stats(statistics) -> dict:
         for result in results:
             # bandwidth
             for kind in ["download", "upload"]:
-                statistics_count[kind] += float(result["session_bandwidth"][kind])
-                statistics_count["bandwidth"] += float(
-                    result["session_bandwidth"][kind]
-                )
+                if "session_bandwidth" in result:
+                    statistics_count[kind] += float(result["session_bandwidth"][kind])
+                    statistics_count["bandwidth"] += float(
+                        result["session_bandwidth"][kind]
+                    )
 
             # earning (only udvpn)
             for kind in ["bytes", "hours"]:

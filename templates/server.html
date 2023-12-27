@@ -340,11 +340,15 @@
             </div>
 
             <script>
-                var data = JSON.parse('{{ container["NodeStatus"] | tojson}}')
-                $("#json-status-renderer-{{ container.Id }}").jsonViewer(data, {collapsed: false, withQuotes: true, withLinks: true});
+                {% if container["NodeStatus"] is defined %}
+                    var nodeStatus = JSON.parse('{{ container["NodeStatus"] | tojson}}')
+                    $("#json-status-renderer-{{ container.Id }}").jsonViewer(nodeStatus, {collapsed: false, withQuotes: true, withLinks: true});
+                {% endif %}
 
-                var data = JSON.parse('{{ container["NodeHealth"] | tojson}}')
-                $("#json-health-renderer-{{ container.Id }}").jsonViewer(data, {collapsed: false, withQuotes: true, withLinks: true});
+                {% if container["NodeHealth"] is defined %}
+                    var nodeHealth = JSON.parse('{{ container["NodeHealth"] | tojson}}')
+                    $("#json-health-renderer-{{ container.Id }}").jsonViewer(nodeHealth, {collapsed: false, withQuotes: true, withLinks: true});
+                {% endif %}
             </script>
         </div>
     {% endfor %}
