@@ -98,3 +98,4 @@ After a feature request I've implement a basic auth for the dashboard. The crede
 ![Node logs](assets/node-logs-dark.png)
 ![Node health](assets/node-health-dark.png)
 ![Node subscription](assets/node-subscription-dark.png)
+![Node stats](assets/node-stats-dark.png)
