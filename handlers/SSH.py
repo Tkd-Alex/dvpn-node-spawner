@@ -151,10 +151,10 @@ class SSH:
         # The milliseconds are different, hope the second are matching each other
 
         cmd = (
-            f"ls -ltr --time=ctime --time-style='+%Y%m%d%H%M%S' {keyring_backend_path}"
+            f"sudo ls -ltr --time=ctime --time-style='+%Y%m%d%H%M%S' {keyring_backend_path}"
             + " | awk '{print $6,$7}'"
         )
-        _, stdout, stderr = self.client.exec_command(cmd)
+        _, stdout, stderr = self.sudo_exec_command(cmd)
         stderr.read()
 
         keyring_files = stdout.read().decode("utf-8")
@@ -162,11 +162,14 @@ class SSH:
 
         keyring_births = {}
         for f in keyring_files:
-            d, v = f.split(" ")
-            if d not in keyring_births:
-                keyring_births[d] = {"address": None, "kname": None}
-            k = "address" if v.endswith(".address") else "kname"
-            keyring_births[d][k] = v
+            try:
+                d, v = f.strip().split(" ")
+                if d not in keyring_births:
+                    keyring_births[d] = {"address": None, "kname": None}
+                k = "address" if v.endswith(".address") else "kname"
+                keyring_births[d][k] = v
+            except Exception:
+                pass
 
         pub_address = None
         for birth in keyring_births:
