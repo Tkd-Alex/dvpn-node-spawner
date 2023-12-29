@@ -173,7 +173,7 @@
                     <button class="nav-link" id="logs-tab" data-bs-target="{{ '#logs-' + container.Id[:12] }}" aria-controls="logs" data-bs-toggle="tab" type="button" role="tab" aria-selected="false" onclick="containerLogs('{{ server_info._id }}', '{{ container.Id }}')">Logs</button>
                 </li>
                 <li class="nav-item" role="presentation">
-                    <button class="nav-link" id="subscriptions-tab" data-bs-target="{{ '#subscriptions-' + container.Id[:12] }}" aria-controls="subscriptions" data-bs-toggle="tab" type="button" role="tab" aria-selected="false">Subscriptions</button>
+                    <button class="nav-link" id="onchain-tab" data-bs-target="{{ '#onchain-' + container.Id[:12] }}" aria-controls="onchain" data-bs-toggle="tab" type="button" role="tab" aria-selected="false">OnChain</button>
                 </li>
                 <li class="nav-item" role="presentation">
                     <button class="nav-link" id="stats-tab" data-bs-target="{{ '#stats-' + container.Id[:12] }}" aria-controls="stats" data-bs-toggle="tab" type="button" role="tab" aria-selected="false">Stats</button>
@@ -199,12 +199,15 @@
                     <br>
                     <div style="max-height: 700px; overflow-y: auto; padding: 15px" id="node-logs-{{ container.Id }}"></div>
                 </div>
-                <div class="tab-pane fade" id="{{ 'subscriptions-' + container.Id[:12] }}" role="tabpanel" aria-labelledby="subscriptions-tab">
+                <div class="tab-pane fade" id="{{ 'onchain-' + container.Id[:12] }}" role="tabpanel" aria-labelledby="onchain-tab">
                     <br>
                     {% if container["SentNode"] is not none %}
-                        <p>Subscriptions for: <a href="https://map.sentinel.co/nodes/{{ container['SentNode'] }}" target="_blank">{{ container["SentNode"] }}</a> are scraped from chain</p>
+                        <p>Chain data for: <a href="https://map.sentinel.co/nodes/{{ container['SentNode'] }}" target="_blank">{{ container["SentNode"] }}</a> are scraped directly chain</p>
+                        <hr>
                     {% endif %}
+
                     <div>
+                        <h4>Subscriptions ({{ container.NodeOnChain['subscriptions'] | length}})</h4>
                         <table class="table">
                             <thead>
                                 <tr>
@@ -218,7 +221,7 @@
                                 </tr>
                             </thead>
                             <tbody>
-                                {% for subscription in container.NodeSubscriptions %}
+                                {% for subscription in container.NodeOnChain['subscriptions'] %}
                                 <tr>
                                     <th scope="row">{{ subscription.id }}</th>
                                     <td><a href="https://www.mintscan.io/sentinel/address/{{ subscription.address }}" target="_blank" rel="noopener noreferrer">{{ subscription.address }}</a></td>
@@ -236,6 +239,67 @@
                             </tbody>
                         </table>
                     </div>
+                    <br>
+
+                    <div>
+                        <h4>Payouts ({{ container.NodeOnChain['payouts'] | length}})</h4>
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th scope="col">#</th>
+                                    <th scope="col">Address</th>
+                                    <th scope="col">Hours</th>
+                                    <th scope="col">Next at</th>
+                                    <th scope="col">Price</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for payout in container.NodeOnChain['payouts'] %}
+                                <tr>
+                                    <th scope="row">{{ payout.id }}</th>
+                                    <td><a href="https://www.mintscan.io/sentinel/address/{{ payout.address }}" target="_blank" rel="noopener noreferrer">{{ payout.address }}</a></td>
+                                    <td>{{ payout.hours }}</td>
+                                    <td>{{ payout.next_at }}</td>
+                                    <td class="text-end">{{ payout.price.amount }} {{ payout.price.denom }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    <br>
+
+                    <div>
+                        <h4>Sessions ({{ container.NodeOnChain['sessions'] | length }})</h4>
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th scope="col">#</th>
+                                    <th scope="col">Sub id</th>
+                                    <th scope="col">Bandwidth</th>
+                                    <th scope="col">Address</th>
+                                    <th scope="col">Inactive at</th>
+                                    <th scope="col">Status at</th>
+                                    <th scope="col">Status</th>
+                                    <th scope="col">Duration</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for session in container.NodeOnChain['sessions'] %}
+                                <tr>
+                                    <th scope="row">{{ session.id }}</th>
+                                    <th>{{ session.subscription_id }}</th>
+                                    <th> &uarr; {{ session.bandwidth.upload }} &darr; {{ session.bandwidth.download }} </th>
+                                    <td><a href="https://www.mintscan.io/sentinel/address/{{ session.address }}" target="_blank" rel="noopener noreferrer">{{ session.address }}</a></td>
+                                    <td>{{ session.inactive_at }}</td>
+                                    <td>{{ session.status_at }}</td>
+                                    <td>{{ session.status }}</td>
+                                    <td>{{ session.duration }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+
                 </div>
                 <div class="tab-pane fade" id="{{ 'stats-' + container.Id[:12] }}" role="tabpanel" aria-labelledby="stats-tab">
                     <br>

@@ -19,7 +19,7 @@ from pywgkey import WgPsk
 from handlers.Config import Config
 from handlers.SentinelCLI import SentinelCLI
 from handlers.SSH import SSH
-from onchain import hex_to_bech32, subscriptions
+from onchain import hex_to_bech32, payouts, sessions, subscriptions
 from utils import (
     aggregate_node_stats,
     html_output,
@@ -631,7 +631,7 @@ def handle_server(server_id: int):
                 container["Created"] = string_timestamp(container["Created"])
                 container["NodeStatus"] = {}
                 container["NodeHealth"] = {}
-                container["NodeSubscriptions"] = []
+                container["NodeOnChain"] = {}
                 container["NodeStatistics"] = {}
                 container["SentNode"] = None
 
@@ -718,18 +718,28 @@ def handle_server(server_id: int):
                         f'{container["Id"][:12]}, sentnode = {container["SentNode"]}'
                     )
 
-                    try:
-                        container["NodeSubscriptions"] = subscriptions(
-                            container["SentNode"]
-                        )
-                        app.logger.info(
-                            f'{container["Id"][:12]}, subscriptions = success'
-                        )
-                    except Exception as e:
-                        app.logger.info(
-                            f'{container["Id"][:12]}, subscriptions = failed'
-                        )
-                        app.logger.exception(e)
+                    onchain = {
+                        "subscriptions": subscriptions,
+                        "payouts": payouts,
+                        "sessions": sessions,
+                    }
+                    with ThreadPoolExecutor(max_workers=3) as executor:
+                        futures = {
+                            executor.submit(onchain[kind], container["SentNode"]): kind
+                            for kind in onchain
+                        }
+                        for future in as_completed(futures):
+                            kind = futures[future]
+                            try:
+                                container["NodeOnChain"][kind] = future.result()
+                                app.logger.info(
+                                    f'{container["Id"][:12]}, onchain_{kind} = success'
+                                )
+                            except Exception as e:
+                                app.logger.info(
+                                    f'{container["Id"][:12]}, onchain_{kind} = failed'
+                                )
+                                app.logger.exception(e)
 
                     statistics = {}
                     timeframes = ["day", "week", "month"]
@@ -745,11 +755,11 @@ def handle_server(server_id: int):
                             try:
                                 statistics[timeframe] = future.result()
                                 app.logger.info(
-                                    f'{container["Id"][:12]}, stats-{timeframe} = success'
+                                    f'{container["Id"][:12]}, stats_{timeframe} = success'
                                 )
                             except Exception as e:
                                 app.logger.info(
-                                    f'{container["Id"][:12]}, stats-{timeframe} = failed'
+                                    f'{container["Id"][:12]}, stats_{timeframe} = failed'
                                 )
                                 app.logger.exception(e)
 
@@ -766,11 +776,11 @@ def handle_server(server_id: int):
                             global_stats
                         )
                         app.logger.info(
-                            f'{container["Id"][:12]}, stats-global = success'
+                            f'{container["Id"][:12]}, stats_global = success'
                         )
                     except Exception as e:
                         app.logger.info(
-                            f'{container["Id"][:12]}, stats-global = failed'
+                            f'{container["Id"][:12]}, stats_global = failed'
                         )
                         app.logger.exception(e)
 

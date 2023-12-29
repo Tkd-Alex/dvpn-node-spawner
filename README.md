@@ -97,5 +97,5 @@ After a feature request I've implement a basic auth for the dashboard. The crede
 ![Node status](assets/node-status-dark.png)
 ![Node logs](assets/node-logs-dark.png)
 ![Node health](assets/node-health-dark.png)
-![Node subscription](assets/node-subscription-dark.png)
+![Node onchain](assets/node-onchain-dark.png)
 ![Node stats](assets/node-stats-dark.png)
