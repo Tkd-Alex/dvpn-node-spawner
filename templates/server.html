@@ -202,7 +202,7 @@
                 <div class="tab-pane fade" id="{{ 'onchain-' + container.Id[:12] }}" role="tabpanel" aria-labelledby="onchain-tab">
                     <br>
                     {% if container["SentNode"] is not none %}
-                        <p>Chain data for: <a href="https://map.sentinel.co/nodes/{{ container['SentNode'] }}" target="_blank">{{ container["SentNode"] }}</a> are scraped directly chain</p>
+                        <p>Chain data for: <a href="https://map.sentinel.co/nodes/{{ container['SentNode'] }}" target="_blank">{{ container["SentNode"] }}</a> are scraped directly from chain</p>
                         <hr>
                     {% endif %}
 
