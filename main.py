@@ -5,6 +5,7 @@ import secrets
 import tempfile
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from hashlib import sha256
+from logging.config import dictConfig
 from pathlib import PurePosixPath
 
 import randomname
@@ -30,7 +31,28 @@ from utils import (
     update_settings,
 )
 
-app = Flask(__name__)
+app = Flask("nodespawner")
+
+dictConfig(
+    {
+        "version": 1,
+        "formatters": {
+            "default": {
+                "format": "[%(asctime)s] - %(name)s: %(message)s",
+                "datefmt": "%d/%b/%Y %H:%M:%S",
+            }
+        },
+        "handlers": {
+            "console": {
+                "class": "logging.StreamHandler",
+                "stream": "ext://sys.stdout",
+                "formatter": "default",
+            }
+        },
+        "root": {"level": "INFO", "handlers": ["console"]},
+    }
+)
+
 app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///servers.sqlite3"
 
 db = SQLAlchemy(app)
@@ -471,7 +493,7 @@ def handle_server(server_id: int):
                     cmd = f"docker {'run' if valid_mnemonic is True else 'create'} --name dvpn-node-{moniker} --interactive --tty {common_arguments} {docker_image} process start"
                     cmd = f"tmux new-session -d -s {tmux_name} '{cmd}' && sleep 10 && tmux send-keys -t {tmux_name}.0 '{keyring_password}' ENTER && tmux ls | grep '{tmux_name}'"
 
-                print(cmd)
+                app.logger.info(cmd)
                 stdin, stdout, stderr = ssh.exec_command(cmd)
 
                 output = f"<b>Keyring output:</b>\n{keyring_output}\n"
@@ -512,7 +534,7 @@ def handle_server(server_id: int):
                 ]
                 cmd += " && " + " && ".join(commands)
 
-            print(cmd)
+            app.logger.info(cmd)
             stdin, stdout, stderr = ssh.sudo_exec_command(cmd)
             output = stdout.read().decode("utf-8")
             output = output.replace(server.password, "*" * len(server.password))
@@ -547,7 +569,7 @@ def handle_server(server_id: int):
                         "tmux new-session -d -s dvpn-node-build 'docker build --file Dockerfile --tag sentinel-dvpn-node --force-rm --no-cache --compress . '",
                         "tmux ls | grep 'dvpn-node-build'",
                     ]
-                    print(" && ".join(commands))
+                    app.logger.info(" && ".join(commands))
                     _, stdout, stderr = ssh.exec_command(" && ".join(commands))
                     output = f"\n{stdout.read().decode('utf-8')}"
                     output += f"\n{stderr.read().decode('utf-8')}"
@@ -593,6 +615,7 @@ def handle_server(server_id: int):
                 for img in docker_images
                 if re.search(r"(dvpn-node:latest|dvpn-node)$", img) is not None
             ]
+            app.logger.info(f"Docker images: {docker_images}")
 
             containers = docker_client.containers(all=True)
             containers = [
@@ -600,6 +623,8 @@ def handle_server(server_id: int):
                 for c in containers
                 if re.search(r"(dvpn-node:latest|dvpn-node)$", c["Image"]) is not None
             ]
+            app.logger.info(f"Containers: {len(containers)}")
+
             # For each container search for tcp port and then get node status
             # Extract al node config
             for container in containers:
@@ -610,9 +635,13 @@ def handle_server(server_id: int):
                 container["NodeStatistics"] = {}
                 container["SentNode"] = None
 
+                app.logger.info(f'{container["Id"][:12]}, state = {container["State"]}')
                 if container["State"] == "running":
                     for port in container["Ports"]:
                         if port["IP"] == "0.0.0.0" and port["Type"] == "tcp":
+                            app.logger.info(
+                                f'{container["Id"][:12]}, node_status = https://{server.host}:{port["PublicPort"]}/status'
+                            )
                             try:
                                 container["NodeStatus"] = node_status(
                                     server.host, port["PublicPort"]
@@ -623,8 +652,16 @@ def handle_server(server_id: int):
                                     .get("result", {})
                                     .get("address", None)
                                 )
+                                app.logger.info(
+                                    f'{container["Id"][:12]}, node_status = success'
+                                )
                                 break
                             except Exception as e:
+                                app.logger.info(
+                                    f'{container["Id"][:12]}, node_status = failed'
+                                )
+                                app.logger.exception(e)
+
                                 container["NodeStatus"] = {"exception": f"{e}"}
 
                 for mount in container["Mounts"]:
@@ -632,12 +669,18 @@ def handle_server(server_id: int):
                         config_fpath = str(
                             PurePosixPath(mount["Source"], "config.toml")
                         )
+                        app.logger.info(
+                            f'{container["Id"][:12]}, config = {config_fpath}'
+                        )
                         node_config = ssh.read_file(config_fpath)
                         node_config = toml.loads(node_config)
                         node_config = Config.node_toml2wellknow(node_config)
 
                         node_config["extras"]["node_folder"]["value"] = mount["Source"]
                         service_type = Config.val(node_config, "node", "type")
+                        app.logger.info(
+                            f'{container["Id"][:12]}, node_type = {service_type}'
+                        )
                         service_path = str(
                             PurePosixPath(mount["Source"], f"{service_type}.toml")
                         )
@@ -671,9 +714,22 @@ def handle_server(server_id: int):
                         break
 
                 if container["SentNode"] is not None:
-                    container["NodeSubscriptions"] = subscriptions(
-                        container["SentNode"]
+                    app.logger.info(
+                        f'{container["Id"][:12]}, sentnode = {container["SentNode"]}'
                     )
+
+                    try:
+                        container["NodeSubscriptions"] = subscriptions(
+                            container["SentNode"]
+                        )
+                        app.logger.info(
+                            f'{container["Id"][:12]}, subscriptions = success'
+                        )
+                    except Exception as e:
+                        app.logger.info(
+                            f'{container["Id"][:12]}, subscriptions = failed'
+                        )
+                        app.logger.exception(e)
 
                     statistics = {}
                     timeframes = ["day", "week", "month"]
@@ -688,8 +744,14 @@ def handle_server(server_id: int):
                             timeframe = futures[future]
                             try:
                                 statistics[timeframe] = future.result()
-                            except Exception:
-                                pass
+                                app.logger.info(
+                                    f'{container["Id"][:12]}, stats-{timeframe} = success'
+                                )
+                            except Exception as e:
+                                app.logger.info(
+                                    f'{container["Id"][:12]}, stats-{timeframe} = failed'
+                                )
+                                app.logger.exception(e)
 
                     for timeframe in statistics:
                         container["NodeStatistics"][timeframe] = aggregate_node_stats(
@@ -703,16 +765,29 @@ def handle_server(server_id: int):
                         container["NodeStatistics"]["global"] = aggregate_node_stats(
                             global_stats
                         )
-                    except Exception:
-                        pass
+                        app.logger.info(
+                            f'{container["Id"][:12]}, stats-global = success'
+                        )
+                    except Exception as e:
+                        app.logger.info(
+                            f'{container["Id"][:12]}, stats-global = failed'
+                        )
+                        app.logger.exception(e)
 
                     try:
                         container["NodeHealth"] = node_health(container["SentNode"])
+                        app.logger.info(
+                            f'{container["Id"][:12]}, node-health = success'
+                        )
                     except Exception as e:
+                        app.logger.info(f'{container["Id"][:12]}, node-health = failed')
+                        app.logger.exception(e)
+
                         container["NodeHealth"] = {"exception": f"{e}"}
 
                 # stats = docker_client.stats(container["Id"], decode=False, stream=False, one_shot=True)
                 # container.update({"Stats": stats})
+                app.logger.info("=" * 32)
 
     server.password = "*" * len(server.password)
     server_info = server.as_dict()
@@ -768,5 +843,5 @@ if __name__ == "__main__":
         app.run(
             host=settings.get("listen_on", "127.0.0.1"),
             port=settings.get("listen_port", 3845),
-            debug=True,
+            debug=False,
         )
