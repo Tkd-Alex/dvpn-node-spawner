@@ -20,4 +20,9 @@ jobs:
         pip install pylint
     - name: Analysing the code with pylint
       run: |
-        pylint $(git ls-files '*.py')
+        pylint $(git ls-files '*.py') --disable C0114,C0115,C0116 --max-line-length=150
+
+# pylint disabled
+# C0114 (missing-module-docstring)
+# C0115 (missing-class-docstring)
+# C0116 (missing-function-docstring)

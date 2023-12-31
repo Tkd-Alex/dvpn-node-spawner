@@ -49,10 +49,6 @@ def subscriptions(sentnode: str) -> list:
     response = stub.QuerySubscriptionsForNode(
         QuerySubscriptionsForNodeRequest(address=sentnode)
     )
-    subscriptions = [
-        NodeSubscription.FromString(subscription.value)
-        for subscription in response.subscriptions
-    ]
     return [
         {
             "id": subscription.base.id,
@@ -74,7 +70,10 @@ def subscriptions(sentnode: str) -> list:
                 else subscription.deposit.amount,
             },
         }
-        for subscription in subscriptions
+        for subscription in [
+            NodeSubscription.FromString(subscription.value)
+            for subscription in response.subscriptions
+        ]
     ]
 
 

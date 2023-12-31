@@ -4,10 +4,9 @@ import copy
 def handle_type(value):
     if value in ["True", "False"]:
         return value.lower()
-    elif value.isdigit():
+    if value.isdigit():
         return value
-    else:
-        return f'"{value}"'
+    return f'"{value}"'
 
 
 class Config:
@@ -24,7 +23,13 @@ class Config:
             },
             "id": {"value": "sentinelhub-2", "description": "The network chain ID"},
             "rpc_addresses": {
-                "value": "https://rpc.sentinel.co:443,https://rpc.mathnodes.com:443,https://rpc.sentinel.quokkastake.io:443",
+                "value": ",".join(
+                    [
+                        "https://rpc.sentinel.co:443",
+                        "https://rpc.mathnodes.com:443",
+                        "https://rpc.sentinel.quokkastake.io:443",
+                    ]
+                ),
                 "description": "Comma separated Tendermint RPC addresses for the chain",
             },
             "rpc_query_timeout": {
@@ -83,11 +88,27 @@ class Config:
             },
             "moniker": {"value": "your_node_name", "description": "Name of the node"},
             "gigabyte_prices": {
-                "value": "52573ibc/31FEE1A2A9F9C01113F90BD0BBCCE8FD6BBB8585FAF109A2101827DD1D5B95B8,9204ibc/A8C2D23A1E6F95DA4E48BA349667E322BD7A6C996D8A4AAE8BA72E190F3D1477,1180852ibc/B1C0DDB14F25279A2026BC8794E12B259F8BDA546A3C5132CCAEE4431CE36783,122740ibc/ED07A3391A112B175915CD8FAF43A2DA8E4790EDE12566649D0C2F97716B8518,15342624udvpn",
+                "value": ",".join(
+                    [
+                        "52573ibc/31FEE1A2A9F9C01113F90BD0BBCCE8FD6BBB8585FAF109A2101827DD1D5B95B8",
+                        "9204ibc/A8C2D23A1E6F95DA4E48BA349667E322BD7A6C996D8A4AAE8BA72E190F3D1477",
+                        "1180852ibc/B1C0DDB14F25279A2026BC8794E12B259F8BDA546A3C5132CCAEE4431CE36783",
+                        "122740ibc/ED07A3391A112B175915CD8FAF43A2DA8E4790EDE12566649D0C2F97716B8518",
+                        "15342624udvpn",
+                    ]
+                ),
                 "description": "Prices for one gigabyte of bandwidth provided",
             },
             "hourly_prices": {
-                "value": "18480ibc/31FEE1A2A9F9C01113F90BD0BBCCE8FD6BBB8585FAF109A2101827DD1D5B95B8,770ibc/A8C2D23A1E6F95DA4E48BA349667E322BD7A6C996D8A4AAE8BA72E190F3D1477,1871892ibc/B1C0DDB14F25279A2026BC8794E12B259F8BDA546A3C5132CCAEE4431CE36783,18897ibc/ED07A3391A112B175915CD8FAF43A2DA8E4790EDE12566649D0C2F97716B8518,13557200udvpn",
+                "value": ",".join(
+                    [
+                        "18480ibc/31FEE1A2A9F9C01113F90BD0BBCCE8FD6BBB8585FAF109A2101827DD1D5B95B8",
+                        "770ibc/A8C2D23A1E6F95DA4E48BA349667E322BD7A6C996D8A4AAE8BA72E190F3D1477",
+                        "1871892ibc/B1C0DDB14F25279A2026BC8794E12B259F8BDA546A3C5132CCAEE4431CE36783",
+                        "18897ibc/ED07A3391A112B175915CD8FAF43A2DA8E4790EDE12566649D0C2F97716B8518",
+                        "13557200udvpn",
+                    ]
+                ),
                 "description": "Prices for one hour",
             },
             "remote_url": {
@@ -164,6 +185,7 @@ class Config:
         "from",
     ]
 
+    @staticmethod
     def validate_config(node_config: dict, allow_empty: list) -> str | bool:
         remote_url = node_config["node"]["remote_url"]["value"]
         listen_on = node_config["node"]["listen_on"]["value"]
@@ -186,7 +208,8 @@ class Config:
                     None,
                 ]:
                     return f"{group}.{key} cannot be empty"
-                elif node_config[group][key].get("options", None) is not None:
+
+                if node_config[group][key].get("options", None) is not None:
                     options = [str(o) for o in node_config[group][key]["options"]]
                     if node_config[group][key]["value"] not in options:
                         return f"{group}.{key} value not allowed"
@@ -197,6 +220,7 @@ class Config:
 
         return True
 
+    @staticmethod
     def tomlize(node_config: dict) -> str:
         ignore = ["extras"]
         raw = ""
@@ -215,6 +239,7 @@ class Config:
                     raw += f"{group} = {handle_type(node_config[group]['value'])}\n"
         return raw
 
+    @staticmethod
     def node_toml2wellknow(node_config: dict) -> dict:
         default_values = copy.deepcopy(Config.node)
         for group in node_config:
@@ -224,9 +249,11 @@ class Config:
                         default_values[group][key]["value"] = node_config[group][key]
         return default_values
 
+    @staticmethod
     def val(config: dict, group: str, key: str):
         return config[group][key]["value"]
 
+    @staticmethod
     def from_json(
         json_config: dict, base_values: dict = None, is_update: bool = False
     ) -> dict:

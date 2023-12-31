@@ -51,9 +51,12 @@ class SentinelCLI:
     ) -> str:
         cmd = self.based_cmd + f"--keyring-backend {backend} {key_name}"
         if backend == "test":
-            p = run(cmd, shell=True, encoding="ascii", stdout=PIPE, stderr=PIPE)
+            p = run(
+                cmd, shell=True, encoding="ascii", stdout=PIPE, stderr=PIPE, check=False
+            )
             return f"{p.stdout} {p.stderr}"
-        elif backend == "file":
+
+        if backend == "file":
             if password is None or len(password) < 8:
                 return "Please provide a valid pasword to use for backend file"
             p = run(
@@ -63,8 +66,10 @@ class SentinelCLI:
                 stdout=PIPE,
                 stderr=PIPE,
                 input=f"{password}\n" * 2,
+                check=False,
             )
             return f"{p.stdout} {p.stderr}"
+        return None
 
     def recovery_key(
         self, key_name: str, mnemonic: str, backend: str = "test", password: str = None
@@ -81,5 +86,6 @@ class SentinelCLI:
             input=f"{mnemonic}\n"
             if backend == "test"
             else (f"{mnemonic}\n" + f"{password}\n" * 2),
+            check=False,
         )
         return f"{p.stdout} {p.stderr}"

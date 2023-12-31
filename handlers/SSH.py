@@ -33,13 +33,10 @@ class SSH:
         self.client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
         self.client.connect(host, username=username, password=password, port=port)
 
-        """
-        k = paramiko.RSAKey.from_private_key_file(keyfilename)
-        # OR k = paramiko.DSSKey.from_private_key_file(keyfilename)
-
-        self.client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-        self.client.connect(hostname=host, username=user, pkey=k)
-        """
+        # k = paramiko.RSAKey.from_private_key_file(keyfilename)
+        # # OR k = paramiko.DSSKey.from_private_key_file(keyfilename)
+        # self.client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+        # self.client.connect(hostname=host, username=user, pkey=k)
 
     def sudo_exec_command(self, cmd: str):
         stdin, stdout, stderr = self.client.exec_command(cmd, get_pty=True)
@@ -59,7 +56,7 @@ class SSH:
         return content
 
     def get_home(self) -> str:
-        stdin, stdout, stderr = self.client.exec_command("echo ${HOME}")
+        _, stdout, _ = self.client.exec_command("echo ${HOME}")
         return stdout.read().decode("utf-8").strip()
 
     def put_file(self, fpath: str, remote: str = None) -> bool:
@@ -79,7 +76,7 @@ class SSH:
 
     def docker_api_version(self) -> str:
         cmd = "docker version --format '{{.Client.APIVersion}}'"
-        _, stdout, stderr = self.client.exec_command(cmd)
+        _, stdout, _ = self.client.exec_command(cmd)
         return stdout.read().decode("utf-8").strip()
 
     def docker(self, docker_api_version: str):
@@ -97,7 +94,7 @@ class SSH:
         return None
 
     def pubblic_ip(self):
-        _, stdout, stderr = self.client.exec_command(
+        _, stdout, _ = self.client.exec_command(
             "echo $(jq -r  '.ip' <<< `curl -s ipinfo.io`)"
         )
         return stdout.read().decode("utf-8").strip()
@@ -107,15 +104,15 @@ class SSH:
         yabs_url = "https://raw.githubusercontent.com/masonr/yet-another-bench-script/master/yabs.sh"
         yabs_cmd = f'curl -s -L {yabs_url} | bash > {yabs_fpath} & echo "yabs started, see you later ...";'
         cmd = f"if [ -f {yabs_fpath} ]; then cat {yabs_fpath}; else {yabs_cmd} fi"
-        _, stdout, stderr = self.client.exec_command(cmd)
+        _, stdout, _ = self.client.exec_command(cmd)
         return stdout.read().decode("utf-8").strip()
 
     def arch(self):
-        _, stdout, stderr = self.client.exec_command("uname -m")
+        _, stdout, _ = self.client.exec_command("uname -m")
         return stdout.read().decode("utf-8").strip()
 
     def sudoers_permission(self):
-        _, stdout, stderr = self.sudo_exec_command("sudo whoami")
+        _, stdout, _ = self.sudo_exec_command("sudo whoami")
         return stdout.readlines()[-1].strip() == "root"
 
     # Return a dict where the key is the package and value is a boolean that represent if the package is installed or not (is_installed)
@@ -129,7 +126,7 @@ class SSH:
                 for r in [packages_commands.get(k, k) for k in requirements_packages]
             ]
         )
-        _, stdout, stderr = self.sudo_exec_command(cmd)
+        _, stdout, _ = self.sudo_exec_command(cmd)
         whiches = stdout.readlines()
         inv_commands = {v: k for k, v in packages_commands.items()}
         for which in whiches:
@@ -172,9 +169,9 @@ class SSH:
                 pass
 
         pub_address = None
-        for birth in keyring_births:
-            if f"{keyname}.info" == keyring_births[birth]["kname"]:
-                if keyring_births[birth]["address"] is None:
+        for birth, item in keyring_births.items():
+            if f"{keyname}.info" == item["kname"]:
+                if item["address"] is None:
                     # Address is none, search the next one (+1 second)
                     try:
                         next_birth = f"{int(birth) + 1}"
@@ -182,6 +179,6 @@ class SSH:
                     except Exception:
                         pass
                 else:
-                    pub_address = keyring_births[birth]["address"]
+                    pub_address = item["address"]
                 break
         return pub_address

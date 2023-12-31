@@ -132,13 +132,11 @@ def authentication():
             "password": settings.get("password", None),
         }
         return make_response(jsonify(data), 200)
-    else:
-        authentication = app.config["custom_authentication"].get(
-            "authentication", False
-        )
-        username = app.config["custom_authentication"].get("username", "")
-        data = {"authentication": authentication, "username": username}
-        return make_response(jsonify(data), 200)
+
+    authentication = app.config["custom_authentication"].get("authentication", False)
+    username = app.config["custom_authentication"].get("username", "")
+    data = {"authentication": authentication, "username": username}
+    return make_response(jsonify(data), 200)
 
 
 @app.route("/servers", methods=["GET", "POST"])
@@ -218,7 +216,7 @@ def post_container(server_id: int, container_id: str):
                 if isinstance(validated, bool) and validated is True:
                     with tempfile.TemporaryDirectory() as tmpdirname:
                         config_fpath = os.path.join(tmpdirname, "config.toml")
-                        with open(config_fpath, "w") as f:
+                        with open(config_fpath, "w", encoding="utf-8") as f:
                             f.write(Config.tomlize(updated_node_config))
 
                         # node_folder = Config.val(updated_node_config, "extras", "node_folder")
@@ -382,7 +380,7 @@ def handle_server(server_id: int):
                         )
 
                     config_fpath = os.path.join(tmpdirname, "config.toml")
-                    with open(config_fpath, "w") as f:
+                    with open(config_fpath, "w", encoding="utf-8") as f:
                         f.write(Config.tomlize(new_node_config))
 
                     node_type = Config.val(new_node_config, "node", "type")
@@ -391,7 +389,7 @@ def handle_server(server_id: int):
                         wireguard_config = copy.deepcopy(Config.wireguard)
                         wireguard_config["listen_port"]["value"] = udp_port
                         wireguard_config["private_key"]["value"] = WgPsk().key
-                        with open(service_fpath, "w") as f:
+                        with open(service_fpath, "w", encoding="utf-8") as f:
                             f.write(Config.tomlize(wireguard_config))
                     elif node_type == "v2ray":
                         service_fpath = os.path.join(tmpdirname, "v2ray.toml")
@@ -494,7 +492,7 @@ def handle_server(server_id: int):
                     cmd = f"tmux new-session -d -s {tmux_name} '{cmd}' && sleep 10 && tmux send-keys -t {tmux_name}.0 '{keyring_password}' ENTER && tmux ls | grep '{tmux_name}'"
 
                 app.logger.info(cmd)
-                stdin, stdout, stderr = ssh.exec_command(cmd)
+                _, stdout, stderr = ssh.exec_command(cmd)
 
                 output = f"<b>Keyring output:</b>\n{keyring_output}\n"
                 if valid_mnemonic is False:
@@ -517,7 +515,7 @@ def handle_server(server_id: int):
                 packages_commands=packages_commands,
             )
             requirements_str = " ".join(
-                [r for r in requirements if requirements[r] is False]
+                [key for key, value in requirements.items() if value is False]
             )
             pacman = (
                 f"sudo pacman -S --noconfirm {requirements_str}"  # "/etc/arch-release"
@@ -535,7 +533,7 @@ def handle_server(server_id: int):
                 cmd += " && " + " && ".join(commands)
 
             app.logger.info(cmd)
-            stdin, stdout, stderr = ssh.sudo_exec_command(cmd)
+            _, stdout, stderr = ssh.sudo_exec_command(cmd)
             output = stdout.read().decode("utf-8")
             output = output.replace(server.password, "*" * len(server.password))
             ssh.close()
@@ -615,7 +613,7 @@ def handle_server(server_id: int):
                 for img in docker_images
                 if re.search(r"(dvpn-node:latest|dvpn-node)$", img) is not None
             ]
-            app.logger.info(f"Docker images: {docker_images}")
+            app.logger.info("Docker images: %s", docker_images)
 
             containers = docker_client.containers(all=True)
             containers = [
@@ -623,7 +621,7 @@ def handle_server(server_id: int):
                 for c in containers
                 if re.search(r"(dvpn-node:latest|dvpn-node)$", c["Image"]) is not None
             ]
-            app.logger.info(f"Containers: {len(containers)}")
+            app.logger.info("Containers: %d", len(containers))
 
             # For each container search for tcp port and then get node status
             # Extract al node config
@@ -635,7 +633,9 @@ def handle_server(server_id: int):
                 container["NodeStatistics"] = {}
                 container["SentNode"] = None
 
-                app.logger.info(f'{container["Id"][:12]}, state = {container["State"]}')
+                app.logger.info(
+                    "%s, state = %s", container["Id"][:12], container["State"]
+                )
                 if container["State"] == "running":
                     for port in container["Ports"]:
                         if port["IP"] == "0.0.0.0" and port["Type"] == "tcp":
@@ -653,12 +653,12 @@ def handle_server(server_id: int):
                                     .get("address", None)
                                 )
                                 app.logger.info(
-                                    f'{container["Id"][:12]}, node_status = success'
+                                    "%s, node_status = success", container["Id"][:12]
                                 )
                                 break
                             except Exception as e:
                                 app.logger.info(
-                                    f'{container["Id"][:12]}, node_status = failed'
+                                    "%s, node_status = failed", container["Id"][:12]
                                 )
                                 app.logger.exception(e)
 
@@ -670,7 +670,7 @@ def handle_server(server_id: int):
                             PurePosixPath(mount["Source"], "config.toml")
                         )
                         app.logger.info(
-                            f'{container["Id"][:12]}, config = {config_fpath}'
+                            "%s, config = %s", container["Id"][:12], config_fpath
                         )
                         node_config = ssh.read_file(config_fpath)
                         node_config = toml.loads(node_config)
@@ -679,7 +679,7 @@ def handle_server(server_id: int):
                         node_config["extras"]["node_folder"]["value"] = mount["Source"]
                         service_type = Config.val(node_config, "node", "type")
                         app.logger.info(
-                            f'{container["Id"][:12]}, node_type = {service_type}'
+                            "%s, node_type = %s", container["Id"][:12], service_type
                         )
                         service_path = str(
                             PurePosixPath(mount["Source"], f"{service_type}.toml")
@@ -715,7 +715,7 @@ def handle_server(server_id: int):
 
                 if container["SentNode"] is not None:
                     app.logger.info(
-                        f'{container["Id"][:12]}, sentnode = {container["SentNode"]}'
+                        "%s, sentnode = %s", container["Id"][:12], container["SentNode"]
                     )
 
                     onchain = {
@@ -725,19 +725,23 @@ def handle_server(server_id: int):
                     }
                     with ThreadPoolExecutor(max_workers=3) as executor:
                         futures = {
-                            executor.submit(onchain[kind], container["SentNode"]): kind
-                            for kind in onchain
+                            executor.submit(value, container["SentNode"]): kind
+                            for kind, value in onchain.items()
                         }
                         for future in as_completed(futures):
                             kind = futures[future]
                             try:
                                 container["NodeOnChain"][kind] = future.result()
                                 app.logger.info(
-                                    f'{container["Id"][:12]}, onchain_{kind} = success'
+                                    "%s, onchain_%s = success",
+                                    container["Id"][:12],
+                                    kind,
                                 )
                             except Exception as e:
                                 app.logger.info(
-                                    f'{container["Id"][:12]}, onchain_{kind} = failed'
+                                    "%s, onchain_%s = failed",
+                                    container["Id"][:12],
+                                    kind,
                                 )
                                 app.logger.exception(e)
 
@@ -755,17 +759,21 @@ def handle_server(server_id: int):
                             try:
                                 statistics[timeframe] = future.result()
                                 app.logger.info(
-                                    f'{container["Id"][:12]}, stats_{timeframe} = success'
+                                    "%s, stats_%s = success",
+                                    container["Id"][:12],
+                                    timeframe,
                                 )
                             except Exception as e:
                                 app.logger.info(
-                                    f'{container["Id"][:12]}, stats_{timeframe} = failed'
+                                    "%s, stats_%s = failed",
+                                    container["Id"][:12],
+                                    timeframe,
                                 )
                                 app.logger.exception(e)
 
-                    for timeframe in statistics:
+                    for timeframe, value in statistics.items():
                         container["NodeStatistics"][timeframe] = aggregate_node_stats(
-                            statistics[timeframe]
+                            value
                         )
 
                     try:
@@ -776,21 +784,23 @@ def handle_server(server_id: int):
                             global_stats
                         )
                         app.logger.info(
-                            f'{container["Id"][:12]}, stats_global = success'
+                            "%s, stats_global = success", container["Id"][:12]
                         )
                     except Exception as e:
                         app.logger.info(
-                            f'{container["Id"][:12]}, stats_global = failed'
+                            "%s, stats_global = failed", container["Id"][:12]
                         )
                         app.logger.exception(e)
 
                     try:
                         container["NodeHealth"] = node_health(container["SentNode"])
                         app.logger.info(
-                            f'{container["Id"][:12]}, node-health = success'
+                            "%s, node-health = success", container["Id"][:12]
                         )
                     except Exception as e:
-                        app.logger.info(f'{container["Id"][:12]}, node-health = failed')
+                        app.logger.info(
+                            "%s, node-health = failed", container["Id"][:12]
+                        )
                         app.logger.exception(e)
 
                         container["NodeHealth"] = {"exception": f"{e}"}

@@ -40,8 +40,14 @@ def node_stats(
     ctx = ssl.create_default_context()
     ctx.check_hostname = False
     ctx.verify_mode = ssl.CERT_NONE
+    args = [
+        f"sort={sort}",
+        f"limit={limit}",
+        f"skip={skip}",
+        f"timeframe={timeframe}",
+    ]
     with urllib.request.urlopen(
-        f"https://api.explorer.sentinel.co/v2/nodes/{sentnode}/statistics?sort={sort}&limit={limit}&skip={skip}&timeframe={timeframe}",
+        f"https://api.explorer.sentinel.co/v2/nodes/{sentnode}/statistics?{'&'.join(args)}",
         timeout=60,
         context=ctx,
     ) as f:
@@ -110,23 +116,25 @@ def parse_settings() -> dict:
         answers["listen_port"] = int(answers["listen_port"])
         del answers["password_validation"]
 
-        with open(settings_fpath, "w") as f:
+        with open(settings_fpath, "w", encoding="utf-8") as f:
             json.dump(answers, f, indent=4)
 
-    return json.load(open(settings_fpath, "r"))
+    return json.load(open(settings_fpath, "r", encoding="utf-8"))
 
 
 def update_settings(username: str, password: str, authentication: bool = False):
     settings_fpath = os.path.join(os.getcwd(), "settings.json")
     settings = (
-        json.load(open(settings_fpath, "r")) if os.path.isfile(settings_fpath) else {}
+        json.load(open(settings_fpath, "r", encoding="utf-8"))
+        if os.path.isfile(settings_fpath)
+        else {}
     )
 
     settings["username"] = username
     settings["password"] = sha256(password.encode("utf-8")).hexdigest()
     settings["authentication"] = authentication
 
-    with open(settings_fpath, "w") as f:
+    with open(settings_fpath, "w", encoding="utf-8") as f:
         json.dump(settings, f, indent=4)
 
 
@@ -177,11 +185,9 @@ def aggregate_node_stats(statistics) -> dict:
             # earning (only udvpn)
             for kind in ["bytes", "hours"]:
                 earning = sum(
-                    [
-                        float(e.get("amount", 0))
-                        for e in result.get(f"{kind}_earning", [])
-                        if e["denom"] == "udvpn"
-                    ]
+                    float(e.get("amount", 0))
+                    for e in result.get(f"{kind}_earning", [])
+                    if e["denom"] == "udvpn"
                 )
                 statistics_count[f"earnings_{kind}"] += earning
                 statistics_count["earnings"] += earning
@@ -215,7 +221,7 @@ def aggregate_node_stats(statistics) -> dict:
 
 # https://gist.github.com/borgstrom/936ca741e885a1438c374824efb038b3
 def human_time_duration(seconds):
-    TIME_DURATION_UNITS = (
+    time_duration_units = (
         ("week", 60 * 60 * 24 * 7),
         ("day", 60 * 60 * 24),
         ("hour", 60 * 60),
@@ -227,8 +233,8 @@ def human_time_duration(seconds):
         return "0 secs"
 
     parts = []
-    for unit, div in TIME_DURATION_UNITS:
+    for unit, div in time_duration_units:
         amount, seconds = divmod(int(seconds), div)
         if amount > 0:
-            parts.append("{} {}{}".format(amount, unit, "" if amount == 1 else "s"))
+            parts.append(f"{amount} {unit}{'' if amount == 1 else 's'}")
     return ", ".join(parts)
