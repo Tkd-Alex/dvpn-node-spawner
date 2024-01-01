@@ -90,6 +90,14 @@
                     <td>{{ ', '.join(container.Names) }}</td>
                     <td class="text-end">
                         <button
+                            onclick="containerAction('{{ server_info._id }}', '{{ container.Id }}', 'rebuild')"
+                            data-toggle="tooltip"
+                            data-placement="top"
+                            title="Rebuild (will destroy the container and start a new one)"
+                            class="btn btn-sm">
+                            <i class="bi bi-wrench-adjustable-circle"></i>
+                        </button>
+                        <button
                             onclick="containerAction('{{ server_info._id }}', '{{ container.Id }}', 'restart')"
                             data-toggle="tooltip"
                             data-placement="top"

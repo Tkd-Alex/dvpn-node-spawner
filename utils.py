@@ -238,3 +238,10 @@ def human_time_duration(seconds):
         if amount > 0:
             parts.append(f"{amount} {unit}{'' if amount == 1 else 's'}")
     return ", ".join(parts)
+
+
+def get_node_folder(mounts: list) -> str:
+    for mount in mounts:
+        if mount["Type"] == "bind" and mount["Source"] != "/lib/modules":
+            return mount["Source"]
+    return None

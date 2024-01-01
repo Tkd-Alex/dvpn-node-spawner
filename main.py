@@ -22,6 +22,7 @@ from handlers.SSH import SSH
 from onchain import hex_to_bech32, payouts, sessions, subscriptions
 from utils import (
     aggregate_node_stats,
+    get_node_folder,
     html_output,
     node_health,
     node_stats,
@@ -165,7 +166,15 @@ def handle_servers():
 def post_container(server_id: int, container_id: str):
     json_request = request.get_json()
     action = json_request.get("action", None)
-    if action in ["stop", "remove", "restart", "start", "logs", "update-node-conf"]:
+    if action in [
+        "stop",
+        "remove",
+        "restart",
+        "rebuild",
+        "start",
+        "logs",
+        "update-node-conf",
+    ]:
         server = db.session.get(Servers, server_id)
         ssh = SSH(
             host=server.host,
@@ -173,7 +182,17 @@ def post_container(server_id: int, container_id: str):
             password=server.password,
             port=server.port,
         )
+
         docker_api_version = ssh.docker_api_version().strip()
+        docker_installed = (
+            docker_api_version != ""
+            and re.match(r"^[\.0-9]*$", docker_api_version) is not None
+        )
+
+        if docker_installed is False:
+            ssh.close()
+            return "Make sure to have installed docker on the server"
+
         docker_client = ssh.docker(docker_api_version)
 
         containers = docker_client.containers(all=True)
@@ -183,53 +202,138 @@ def post_container(server_id: int, container_id: str):
                 logs = docker_client.logs(container_id, tail=250)
                 ssh.close()
                 return Ansi2HTMLConverter().convert(logs.decode("utf-8"))
-            elif action == "update-node-conf":
+
+            if action in ["update-node-conf", "rebuild"]:
                 container = containers.pop(0)
-                node_folder = None
+                node_folder = get_node_folder(container["Mounts"])
                 current_node_config = None
-                for mount in container["Mounts"]:
-                    if mount["Type"] == "bind" and mount["Source"] != "/lib/modules":
-                        node_folder = mount["Source"]
-                        node_config_fpath = str(
-                            PurePosixPath(mount["Source"], "config.toml")
-                        )
-                        current_node_config = ssh.read_file(node_config_fpath)
-                        current_node_config = toml.loads(current_node_config)
-                        current_node_config = Config.node_toml2wellknow(
-                            current_node_config
-                        )
-                        break
+                if node_folder is not None:
+                    node_config_fpath = str(PurePosixPath(node_folder, "config.toml"))
+                    current_node_config = ssh.read_file(node_config_fpath)
+                    current_node_config = toml.loads(current_node_config)
+                    current_node_config = Config.node_toml2wellknow(current_node_config)
 
                 if current_node_config is None:
                     ssh.close()
                     return "Unable to find current node configuration on the server"
 
-                updated_node_config = Config.from_json(
-                    json_request, base_values=current_node_config, is_update=True
+                if action == "update-node-conf":
+                    updated_node_config = Config.from_json(
+                        json_request, base_values=current_node_config, is_update=True
+                    )
+
+                    # For the update we don't need the extras key
+                    allow_empty = ["ipv4_address"] + list(Config.node["extras"].keys())
+                    validated = Config.validate_config(
+                        updated_node_config, allow_empty=allow_empty
+                    )
+                    if isinstance(validated, bool) and validated is True:
+                        with tempfile.TemporaryDirectory() as tmpdirname:
+                            config_fpath = os.path.join(tmpdirname, "config.toml")
+                            with open(config_fpath, "w", encoding="utf-8") as f:
+                                f.write(Config.tomlize(updated_node_config))
+
+                            # node_folder = Config.val(updated_node_config, "extras", "node_folder")
+                            # We already have this fpath got from container info
+                            ssh.put_file(config_fpath, node_folder)
+
+                            # What about protocol change or udp port?
+                            # wait... the udp port can't be changed, the container must be "recreated" / issue with port binding
+                            # udp_port = Config.val(updated_node_config, "extras", "udp_port")
+
+                        # Probably we should implement auto reboot here.
+                        return "Configuration updated, don't forget to reboot your node"
+                    return validated
+
+                # Else condition here is not necessary because at least we return before.
+                # In order to rebuild the node i need a valid dvpn-node image
+                docker_images = []
+                for image in docker_client.images():
+                    docker_images += image["RepoTags"]
+                docker_images = [
+                    img
+                    for img in docker_images
+                    if re.search(r"(dvpn-node:latest|dvpn-node)$", img) is not None
+                ]
+                if docker_images == []:
+                    ssh.close()
+                    return "Unable to find a valid dvpn-node image"
+
+                moniker = Config.val(current_node_config, "node", "moniker")
+                moniker = moniker.lower().replace(" ", "-")
+
+                udp_port = None
+                tcp_port = None
+
+                for port in container["Ports"]:
+                    if port["IP"] == "0.0.0.0" and port["Type"] == "tcp":
+                        tcp_port = port["PublicPort"]
+                    elif port["IP"] == "0.0.0.0" and port["Type"] == "udp":
+                        udp_port = port["PublicPort"]
+
+                # What if the port wasn't founded trought iteartion? Going to check via the config please ...
+                if tcp_port is None:
+                    listen_on = Config.val(current_node_config, "node", "listen_on")
+                    tcp_port = listen_on.split(":")[-1].strip()
+
+                if udp_port is None:
+                    service_type = Config.val(current_node_config, "node", "type")
+                    service_path = str(
+                        PurePosixPath(node_folder, f"{service_type}.toml")
+                    )
+                    service_config = ssh.read_file(service_path)
+                    service_config = toml.loads(service_config)
+                    udp_port = (
+                        service_config["vmess"]["listen_port"]
+                        if service_type == "v2ray"
+                        else service_config["listen_port"]
+                    )
+
+                # Stop and remove the previous container
+                docker_client.stop(container_id)
+                docker_client.remove_container(container_id)
+
+                docker_image = docker_images.pop(0)
+                # cap-add/drop, sysctl and /lib/modules volume probably are not needed for v2ray node
+                common_arguments = " ".join(
+                    [
+                        f" --volume {node_folder}:/root/.sentinelnode"
+                        " --volume /lib/modules:/lib/modules"
+                        " --cap-drop ALL"
+                        " --cap-add NET_ADMIN"
+                        " --cap-add NET_BIND_SERVICE"
+                        " --cap-add NET_RAW"
+                        " --cap-add SYS_MODULE"
+                        " --sysctl net.ipv4.ip_forward=1"
+                        " --sysctl net.ipv6.conf.all.disable_ipv6=0"
+                        " --sysctl net.ipv6.conf.all.forwarding=1"
+                        " --sysctl net.ipv6.conf.default.forwarding=1"
+                        f" --publish {tcp_port}:{tcp_port}/tcp"
+                        f" --publish {udp_port}:{udp_port}/udp"
+                    ]
                 )
 
-                # For the update we don't need the extras key
-                allow_empty = ["ipv4_address"] + list(Config.node["extras"].keys())
-                validated = Config.validate_config(
-                    updated_node_config, allow_empty=allow_empty
-                )
-                if isinstance(validated, bool) and validated is True:
-                    with tempfile.TemporaryDirectory() as tmpdirname:
-                        config_fpath = os.path.join(tmpdirname, "config.toml")
-                        with open(config_fpath, "w", encoding="utf-8") as f:
-                            f.write(Config.tomlize(updated_node_config))
+                keyring_backend = Config.val(current_node_config, "keyring", "backend")
+                if keyring_backend == "test":
+                    cmd = f"docker run -d --name dvpn-node-{moniker} --restart unless-stopped {common_arguments} {docker_image} process start"
+                else:
+                    tmux_name = f"dvpn-node-{moniker}"
+                    # --rm
+                    cmd = f"docker run --name dvpn-node-{moniker} --interactive --tty {common_arguments} {docker_image} process start"
+                    cmd = f"tmux new-session -d -s {tmux_name} '{cmd}' && sleep 10 && tmux ls | grep '{tmux_name}' && tmux capture-pane -pt {tmux_name}"
 
-                        # node_folder = Config.val(updated_node_config, "extras", "node_folder")
-                        # We already have this fpath got from container info
-                        ssh.put_file(config_fpath, node_folder)
+                app.logger.info(cmd)
+                _, stdout, stderr = ssh.exec_command(cmd)
 
-                        # What about protocol change or udp port?
-                        # wait... the udp port can't be changed, the container must be "recreated" / issue with port binding
-                        # udp_port = Config.val(updated_node_config, "extras", "udp_port")
+                output = "Previous container was destroied and a new one was created\n"
+                if keyring_backend == "file":
+                    output += f"You keyring-backed is setup as 'file', please use the command 'tmux a -t {tmux_name}' and write your keyring password in order to start the node\n"
 
-                    # Probably we should implement auto reboot here.
-                    return "Configuration updated, don't forget to reboot your node"
-                return validated
+                output += f"\n{stdout.read().decode('utf-8')}"
+                output += f"\n{stderr.read().decode('utf-8')}"
+
+                ssh.close()
+                return html_output(output)
 
             try:
                 if action == "stop":
@@ -395,7 +499,7 @@ def handle_server(server_id: int):
                         service_fpath = os.path.join(tmpdirname, "v2ray.toml")
                         v2ray_config = copy.deepcopy(Config.v2ray)
                         v2ray_config["vmess"]["listen_port"]["value"] = udp_port
-                        with open(service_fpath, "w") as f:
+                        with open(service_fpath, "w", encoding="utf-8") as f:
                             f.write(Config.tomlize(v2ray_config))
 
                     ssh.exec_command(
@@ -489,7 +593,7 @@ def handle_server(server_id: int):
                     tmux_name = f"dvpn-node-{moniker}"
                     # --rm
                     cmd = f"docker {'run' if valid_mnemonic is True else 'create'} --name dvpn-node-{moniker} --interactive --tty {common_arguments} {docker_image} process start"
-                    cmd = f"tmux new-session -d -s {tmux_name} '{cmd}' && sleep 10 && tmux send-keys -t {tmux_name}.0 '{keyring_password}' ENTER && tmux ls | grep '{tmux_name}'"
+                    cmd = f"tmux new-session -d -s {tmux_name} '{cmd}' && sleep 10 && tmux send-keys -t {tmux_name}.0 '{keyring_password}' ENTER && tmux ls | grep '{tmux_name}' && tmux capture-pane -pt {tmux_name}"
 
                 app.logger.info(cmd)
                 _, stdout, stderr = ssh.exec_command(cmd)
@@ -559,14 +663,27 @@ def handle_server(server_id: int):
                     output = docker_client.pull(repository, tag=None)
                     return html_output(output)
                 elif action == "build":
+                    # https://api.github.com/repos/sentinel-official/dvpn-node/tags
+                    # https://api.github.com/repos/sentinel-official/dvpn-node/releases/latest
+
+                    github_repository = "sentinel-official/dvpn-node"
                     commands = [
-                        "git clone https://github.com/sentinel-official/dvpn-node.git ${HOME}/dvpn-node-image/",
-                        "cd ${HOME}/dvpn-node-image/",
-                        "commit=$(git rev-list --tags --max-count=1)",
-                        "git checkout $(git describe --tags ${commit})",
+                        # "git clone https://github.com/sentinel-official/dvpn-node.git ${HOME}/dvpn-node-image/",
+                        # "cd ${HOME}/dvpn-node-image/",
+                        # "commit=$(git rev-list --tags --max-count=1)",
+                        # "git checkout $(git describe --tags ${commit})",
+                        # Clone the repository if was never cloned.
+                        'if [ ! -f "${HOME}/dvpn-node-image/.git/HEAD" ]; then git clone '
+                        + f"https://github.com/{github_repository}.git"
+                        + " ${HOME}/dvpn-node-image/; fi",
+                        # Get the tag name from latest release, then change folder, perform a git pull (maybe was cloned in the past), checkout that commit
+                        f"tag_name=$(jq -r  '.tag_name' <<< `curl -s https://api.github.com/repos/{github_repository}/releases/latest`)",
+                        "cd ${HOME}/dvpn-node-image/ && git pull && git checkout ${tag_name}",
+                        # Create a new tmux session and build the image
                         "tmux new-session -d -s dvpn-node-build 'docker build --file Dockerfile --tag sentinel-dvpn-node --force-rm --no-cache --compress . '",
-                        "tmux ls | grep 'dvpn-node-build'",
+                        "tmux ls | grep 'dvpn-node-build' && sleep 10 && tmux capture-pane -pt dvpn-node-build",
                     ]
+
                     app.logger.info(" && ".join(commands))
                     _, stdout, stderr = ssh.exec_command(" && ".join(commands))
                     output = f"\n{stdout.read().decode('utf-8')}"
@@ -606,6 +723,8 @@ def handle_server(server_id: int):
             docker_warning = stderr.read().decode("utf-8").strip()
 
         if docker_client is not None:
+            # docker_client.images() # We have on the first element alwasy the latest
+            # Images are already sorted
             for image in docker_client.images():
                 docker_images += image["RepoTags"]
             docker_images = [
@@ -636,6 +755,41 @@ def handle_server(server_id: int):
                 app.logger.info(
                     "%s, state = %s", container["Id"][:12], container["State"]
                 )
+
+                keyring_backend_path = None
+                node_folder = get_node_folder(container["Mounts"])
+                if node_folder is not None:
+                    config_fpath = str(PurePosixPath(node_folder, "config.toml"))
+                    app.logger.info(
+                        "%s, config = %s", container["Id"][:12], config_fpath
+                    )
+                    node_config = ssh.read_file(config_fpath)
+                    node_config = toml.loads(node_config)
+                    node_config = Config.node_toml2wellknow(node_config)
+
+                    node_config["extras"]["node_folder"]["value"] = node_folder
+                    service_type = Config.val(node_config, "node", "type")
+                    app.logger.info(
+                        "%s, node_type = %s", container["Id"][:12], service_type
+                    )
+                    service_path = str(
+                        PurePosixPath(node_folder, f"{service_type}.toml")
+                    )
+                    service_config = ssh.read_file(service_path)
+                    service_config = toml.loads(service_config)
+                    node_config["extras"]["udp_port"]["value"] = (
+                        service_config["vmess"]["listen_port"]
+                        if service_type == "v2ray"
+                        else service_config["listen_port"]
+                    )
+                    container["NodeConfig"] = node_config
+
+                    backend = node_config["keyring"]["backend"]["value"]
+                    keyring_backend_path = PurePosixPath(
+                        node_folder, f"keyring-{backend}"
+                    )
+
+                # uhm server host and port["PublicPort"] should match default_node_config["node"]["remote_url"]["value"]
                 if container["State"] == "running":
                     for port in container["Ports"]:
                         if port["IP"] == "0.0.0.0" and port["Type"] == "tcp":
@@ -664,54 +818,15 @@ def handle_server(server_id: int):
 
                                 container["NodeStatus"] = {"exception": f"{e}"}
 
-                for mount in container["Mounts"]:
-                    if mount["Type"] == "bind" and mount["Source"] != "/lib/modules":
-                        config_fpath = str(
-                            PurePosixPath(mount["Source"], "config.toml")
-                        )
-                        app.logger.info(
-                            "%s, config = %s", container["Id"][:12], config_fpath
-                        )
-                        node_config = ssh.read_file(config_fpath)
-                        node_config = toml.loads(node_config)
-                        node_config = Config.node_toml2wellknow(node_config)
-
-                        node_config["extras"]["node_folder"]["value"] = mount["Source"]
-                        service_type = Config.val(node_config, "node", "type")
-                        app.logger.info(
-                            "%s, node_type = %s", container["Id"][:12], service_type
-                        )
-                        service_path = str(
-                            PurePosixPath(mount["Source"], f"{service_type}.toml")
-                        )
-                        service_config = ssh.read_file(service_path)
-                        service_config = toml.loads(service_config)
-                        node_config["extras"]["udp_port"]["value"] = (
-                            service_config["vmess"]["listen_port"]
-                            if service_type == "v2ray"
-                            else service_config["listen_port"]
-                        )
-                        container["NodeConfig"] = node_config
-
-                        backend = node_config["keyring"]["backend"]["value"]
-                        keyring_backend_path = PurePosixPath(
-                            mount["Source"], f"keyring-{backend}"
-                        )
-
-                        # Else we already have the SentNode
-                        if container["SentNode"] is None:
-                            pub_address = ssh.find_pub_address(
-                                keyring_backend_path,
-                                keyname=node_config["keyring"]["from"]["value"],
-                            )
-                            if pub_address is not None:
-                                pub_address = pub_address.replace(".address", "")
-                                container["SentNode"] = hex_to_bech32(
-                                    "sentnode", pub_address
-                                )
-
-                        # Break loop for container["Mounts"]
-                        break
+                # Else we have already have the SentNode
+                if container["SentNode"] is None and keyring_backend_path is not None:
+                    pub_address = ssh.find_pub_address(
+                        keyring_backend_path,
+                        keyname=node_config["keyring"]["from"]["value"],
+                    )
+                    if pub_address is not None:
+                        pub_address = pub_address.replace(".address", "")
+                        container["SentNode"] = hex_to_bech32("sentnode", pub_address)
 
                 if container["SentNode"] is not None:
                     app.logger.info(
