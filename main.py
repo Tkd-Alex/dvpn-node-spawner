@@ -22,6 +22,7 @@ from handlers.SSH import SSH
 from onchain import hex_to_bech32, payouts, sessions, subscriptions
 from utils import (
     aggregate_node_stats,
+    dvpn_node_images,
     get_node_folder,
     html_output,
     node_health,
@@ -109,7 +110,7 @@ class Servers(db.Model):
 
 @app.route("/", defaults={"path": ""})
 @app.route("/<path:path>")
-def catch_all(path):
+def catch_all(_):
     return redirect("/servers", code=302)
 
 
@@ -120,23 +121,25 @@ def authentication():
         json_request = request.get_json()
         username = json_request.get("username", None)
         password = json_request.get("password", None)
-        authentication = json_request.get("authentication", False)
-        if authentication is None or password is None:
+        auth_request = json_request.get("authentication", False)
+        if auth_request is None or password is None:
             return make_response("Please provide all the required data", 400)
-        update_settings(username, password, authentication)
-        data = {"authentication": authentication, "username": username}
+        update_settings(username, password, auth_request)
+        data = {"authentication": auth_request, "username": username}
 
-        settings = parse_settings()
+        current_settings = parse_settings()
         app.config["custom_authentication"] = {
-            "authentication": settings.get("authentication", False),
-            "username": settings.get("username", None),
-            "password": settings.get("password", None),
+            "authentication": current_settings.get("authentication", False),
+            "username": current_settings.get("username", None),
+            "password": current_settings.get("password", None),
         }
         return make_response(jsonify(data), 200)
 
-    authentication = app.config["custom_authentication"].get("authentication", False)
+    custom_authentication = app.config["custom_authentication"].get(
+        "authentication", False
+    )
     username = app.config["custom_authentication"].get("username", "")
-    data = {"authentication": authentication, "username": username}
+    data = {"authentication": custom_authentication, "username": username}
     return make_response(jsonify(data), 200)
 
 
@@ -247,14 +250,7 @@ def post_container(server_id: int, container_id: str):
 
                 # Else condition here is not necessary because at least we return before.
                 # In order to rebuild the node i need a valid dvpn-node image
-                docker_images = []
-                for image in docker_client.images():
-                    docker_images += image["RepoTags"]
-                docker_images = [
-                    img
-                    for img in docker_images
-                    if re.search(r"(dvpn-node:latest|dvpn-node)$", img) is not None
-                ]
+                docker_images = dvpn_node_images(docker_client.images())
                 if docker_images == []:
                     ssh.close()
                     return "Unable to find a valid dvpn-node image"
@@ -319,14 +315,22 @@ def post_container(server_id: int, container_id: str):
                 else:
                     tmux_name = f"dvpn-node-{moniker}"
                     # --rm
-                    cmd = f"docker run --name dvpn-node-{moniker} --interactive --tty {common_arguments} {docker_image} process start"
-                    cmd = f"tmux new-session -d -s {tmux_name} '{cmd}' && sleep 10 && tmux ls | grep '{tmux_name}' && tmux capture-pane -pt {tmux_name}"
+                    tmux_cmd = f"docker run --name dvpn-node-{moniker} --interactive --tty {common_arguments} {docker_image} process start"
+                    cmd = " && ".join(
+                        [
+                            f"tmux new-session -d -s {tmux_name} '{tmux_cmd}'",
+                            "sleep 10",
+                            f"tmux ls | grep '{tmux_name}'",
+                            f"tmux capture-pane -pt {tmux_name}",
+                        ]
+                    )
 
                 app.logger.info(cmd)
                 _, stdout, stderr = ssh.exec_command(cmd)
 
                 output = "Previous container was destroied and a new one was created\n"
                 if keyring_backend == "file":
+                    # pylint: disable=line-too-long
                     output += f"You keyring-backed is setup as 'file', please use the command 'tmux a -t {tmux_name}' and write your keyring password in order to start the node\n"
 
                 output += f"\n{stdout.read().decode('utf-8')}"
@@ -336,26 +340,25 @@ def post_container(server_id: int, container_id: str):
                 return html_output(output)
 
             try:
-                if action == "stop":
-                    docker_client.stop(container_id)
-                elif action == "remove":
-                    docker_client.remove_container(container_id)
-                # TODO: in order to start or restart the container we should check if we are under screen
-                # ... and obw if the keyring is test or file, in that case we need a passphrase
-                elif action == "restart":
-                    docker_client.restart(container_id)
-                elif action == "start":
-                    docker_client.start(container_id)
-            except Exception as e:
+                match action:
+                    case "stop":
+                        docker_client.stop(container_id)
+                    case "remove":
+                        docker_client.remove_container(container_id)
+                    case "restart":
+                        # TODO: in order to start or restart the container we should check if we are under screen
+                        # ... and obw if the keyring is test or file, in that case we need a passphrase
+                        docker_client.restart(container_id)
+                    case "start":
+                        docker_client.start(container_id)
+            except Exception as e:  # pylint: disable=broad-exception-caught
                 return html_output(e)
 
             ssh.close()
             return f"Action '{action}' was performed on container <b>{container_id[:12]}</b>"
-        else:
-            ssh.close()
-            return (
-                f"The container <b>{container_id[:12]}</b> was not found on the server"
-            )
+
+        ssh.close()
+        return f"The container <b>{container_id[:12]}</b> was not found on the server"
     return "Action not allowed"
 
 
@@ -399,14 +402,7 @@ def handle_server(server_id: int):
                 return "Make sure to have installed docker on the server"
 
             docker_client = ssh.docker(docker_api_version)
-            docker_images = []
-            for image in docker_client.images():
-                docker_images += image["RepoTags"]
-            docker_images = [
-                img
-                for img in docker_images
-                if re.search(r"(dvpn-node:latest|dvpn-node)$", img) is not None
-            ]
+            docker_images = dvpn_node_images(docker_client.images())
             if docker_images == []:
                 ssh.close()
                 return "Unable to find a valid dvpn-node image"
@@ -530,6 +526,7 @@ def handle_server(server_id: int):
                     "content=$( curl -s ipinfo.io )",
                     "country=$( jq -r  '.country' <<< \"${content}\" )",
                     "ip_address=$( jq -r  '.ip' <<< \"${content}\" )",
+                    # pylint: disable=line-too-long
                     f'openssl req -new -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 -x509 -sha256 -days 365 -nodes -out {node_folder}/tls.crt -keyout {node_folder}/tls.key -subj "/C=$country/O=NodeSpawner/OU=NodeSpawner/CN=$ip_address"',
                 ]
                 _, stdout, stderr = ssh.exec_command(" && ".join(commands))
@@ -588,12 +585,21 @@ def handle_server(server_id: int):
                 # If we have a valid_mnemonic run the container, else just create, the wallet must have at least 100dvpn
                 # Popup the alert ...
                 if keyring_backend == "test":
+                    # pylint: disable=line-too-long
                     cmd = f"docker {'run -d' if valid_mnemonic is True else 'create'} --name dvpn-node-{moniker} --restart unless-stopped {common_arguments} {docker_image} process start"
                 else:
                     tmux_name = f"dvpn-node-{moniker}"
-                    # --rm
-                    cmd = f"docker {'run' if valid_mnemonic is True else 'create'} --name dvpn-node-{moniker} --interactive --tty {common_arguments} {docker_image} process start"
-                    cmd = f"tmux new-session -d -s {tmux_name} '{cmd}' && sleep 10 && tmux send-keys -t {tmux_name}.0 '{keyring_password}' ENTER && tmux ls | grep '{tmux_name}' && tmux capture-pane -pt {tmux_name}"
+                    # pylint: disable=line-too-long
+                    tmux_cmd = f"docker {'run' if valid_mnemonic is True else 'create'} --name dvpn-node-{moniker} --interactive --tty {common_arguments} {docker_image} process start"
+                    cmd = " && ".join(
+                        [
+                            f"tmux new-session -d -s {tmux_name} '{tmux_cmd}'",
+                            "sleep 10",
+                            f"tmux send-keys -t {tmux_name}.0 '{keyring_password}' ENTER",
+                            f"tmux ls | grep '{tmux_name}'",
+                            f"tmux capture-pane -pt {tmux_name}",
+                        ]
+                    )
 
                 app.logger.info(cmd)
                 _, stdout, stderr = ssh.exec_command(cmd)
@@ -667,21 +673,26 @@ def handle_server(server_id: int):
                     # https://api.github.com/repos/sentinel-official/dvpn-node/releases/latest
 
                     github_repository = "sentinel-official/dvpn-node"
+                    tmux_sessions_name = "dvpn-node-build"
                     commands = [
                         # "git clone https://github.com/sentinel-official/dvpn-node.git ${HOME}/dvpn-node-image/",
                         # "cd ${HOME}/dvpn-node-image/",
                         # "commit=$(git rev-list --tags --max-count=1)",
                         # "git checkout $(git describe --tags ${commit})",
                         # Clone the repository if was never cloned.
-                        'if [ ! -f "${HOME}/dvpn-node-image/.git/HEAD" ]; then git clone '
-                        + f"https://github.com/{github_repository}.git"
-                        + " ${HOME}/dvpn-node-image/; fi",
-                        # Get the tag name from latest release, then change folder, perform a git pull (maybe was cloned in the past), checkout that commit
+                        (
+                            'if [ ! -f "${HOME}/dvpn-node-image/.git/HEAD" ]; then git clone '
+                            + f"https://github.com/{github_repository}.git"
+                            + " ${HOME}/dvpn-node-image/; fi"
+                        ),
+                        # Get the tag name from latest release, then change folder,
+                        # perform a git pull (maybe was cloned in the past), checkout that commit
+                        # pylint: disable=line-too-long
                         f"tag_name=$(jq -r  '.tag_name' <<< `curl -s https://api.github.com/repos/{github_repository}/releases/latest`)",
                         "cd ${HOME}/dvpn-node-image/ && git pull && git checkout ${tag_name}",
                         # Create a new tmux session and build the image
-                        "tmux new-session -d -s dvpn-node-build 'docker build --file Dockerfile --tag sentinel-dvpn-node --force-rm --no-cache --compress . '",
-                        "tmux ls | grep 'dvpn-node-build' && sleep 10 && tmux capture-pane -pt dvpn-node-build",
+                        f"tmux new-session -d -s {tmux_sessions_name} 'docker build --file Dockerfile --tag sentinel-dvpn-node --force-rm --no-cache --compress . '",
+                        f"tmux ls | grep '{tmux_sessions_name}' && sleep 10 && tmux capture-pane -pt {tmux_sessions_name}",
                     ]
 
                     app.logger.info(" && ".join(commands))
@@ -717,7 +728,7 @@ def handle_server(server_id: int):
     if docker_installed is True:
         try:
             docker_client = ssh.docker(docker_api_version)
-        except Exception:
+        except Exception:  # pylint: disable=broad-exception-caught
             docker_client = None
             _, _, stderr = ssh.exec_command("docker info")
             docker_warning = stderr.read().decode("utf-8").strip()
@@ -725,13 +736,7 @@ def handle_server(server_id: int):
         if docker_client is not None:
             # docker_client.images() # We have on the first element alwasy the latest
             # Images are already sorted
-            for image in docker_client.images():
-                docker_images += image["RepoTags"]
-            docker_images = [
-                img
-                for img in docker_images
-                if re.search(r"(dvpn-node:latest|dvpn-node)$", img) is not None
-            ]
+            docker_images = dvpn_node_images(docker_client.images())
             app.logger.info("Docker images: %s", docker_images)
 
             containers = docker_client.containers(all=True)
@@ -794,7 +799,10 @@ def handle_server(server_id: int):
                     for port in container["Ports"]:
                         if port["IP"] == "0.0.0.0" and port["Type"] == "tcp":
                             app.logger.info(
-                                f'{container["Id"][:12]}, node_status = https://{server.host}:{port["PublicPort"]}/status'
+                                "%s, node_status = https://%s:%s/status",
+                                container["Id"][:12],
+                                server.host,
+                                port["PublicPort"],
                             )
                             try:
                                 container["NodeStatus"] = node_status(
@@ -810,6 +818,7 @@ def handle_server(server_id: int):
                                     "%s, node_status = success", container["Id"][:12]
                                 )
                                 break
+                            # pylint: disable=broad-exception-caught
                             except Exception as e:
                                 app.logger.info(
                                     "%s, node_status = failed", container["Id"][:12]
@@ -852,6 +861,7 @@ def handle_server(server_id: int):
                                     container["Id"][:12],
                                     kind,
                                 )
+                            # pylint: disable=broad-exception-caught
                             except Exception as e:
                                 app.logger.info(
                                     "%s, onchain_%s = failed",
@@ -878,6 +888,7 @@ def handle_server(server_id: int):
                                     container["Id"][:12],
                                     timeframe,
                                 )
+                            # pylint: disable=broad-exception-caught
                             except Exception as e:
                                 app.logger.info(
                                     "%s, stats_%s = failed",
@@ -901,7 +912,7 @@ def handle_server(server_id: int):
                         app.logger.info(
                             "%s, stats_global = success", container["Id"][:12]
                         )
-                    except Exception as e:
+                    except Exception as e:  # pylint: disable=broad-exception-caught
                         app.logger.info(
                             "%s, stats_global = failed", container["Id"][:12]
                         )
@@ -912,7 +923,7 @@ def handle_server(server_id: int):
                         app.logger.info(
                             "%s, node-health = success", container["Id"][:12]
                         )
-                    except Exception as e:
+                    except Exception as e:  # pylint: disable=broad-exception-caught
                         app.logger.info(
                             "%s, node-health = failed", container["Id"][:12]
                         )

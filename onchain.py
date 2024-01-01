@@ -1,11 +1,15 @@
 import bech32
 import grpc
+
+# pylint: disable=no-name-in-module
 from sentinel_protobuf.sentinel.session.v2.querier_pb2 import (
     QuerySessionsForNodeRequest,
 )
 from sentinel_protobuf.sentinel.session.v2.querier_pb2_grpc import (
     QueryServiceStub as StubSession,
 )
+
+# pylint: disable=no-name-in-module
 from sentinel_protobuf.sentinel.subscription.v2.querier_pb2 import (
     QueryPayoutsForNodeRequest,
     QuerySubscriptionsForNodeRequest,
@@ -13,6 +17,8 @@ from sentinel_protobuf.sentinel.subscription.v2.querier_pb2 import (
 from sentinel_protobuf.sentinel.subscription.v2.querier_pb2_grpc import (
     QueryServiceStub as StubSubscription,
 )
+
+# pylint: disable=no-name-in-module
 from sentinel_protobuf.sentinel.subscription.v2.subscription_pb2 import NodeSubscription
 
 from utils import format_file_size, human_time_duration, string_timestamp

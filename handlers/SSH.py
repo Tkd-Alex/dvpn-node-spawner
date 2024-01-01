@@ -1,3 +1,4 @@
+# pylint: disable=invalid-name
 import os
 from pathlib import PurePosixPath
 
@@ -48,9 +49,7 @@ class SSH:
     def read_file(self, fpath: str) -> str:
         sftp = self.client.open_sftp()
         rfile = sftp.open(fpath)
-        content = ""
-        for line in rfile:
-            content += line
+        content = "".join(rfile)
         rfile.close()
         sftp.close()
         return content
@@ -154,8 +153,7 @@ class SSH:
         _, stdout, stderr = self.sudo_exec_command(cmd)
         stderr.read()
 
-        keyring_files = stdout.read().decode("utf-8")
-        keyring_files = keyring_files.strip().split("\n")
+        keyring_files = stdout.read().decode("utf-8").strip().split("\n")
 
         keyring_births = {}
         for f in keyring_files:
@@ -165,20 +163,18 @@ class SSH:
                     keyring_births[d] = {"address": None, "kname": None}
                 k = "address" if v.endswith(".address") else "kname"
                 keyring_births[d][k] = v
-            except Exception:
+            except Exception:  # pylint: disable=broad-exception-caught
                 pass
 
-        pub_address = None
         for birth, item in keyring_births.items():
             if f"{keyname}.info" == item["kname"]:
                 if item["address"] is None:
                     # Address is none, search the next one (+1 second)
                     try:
                         next_birth = f"{int(birth) + 1}"
-                        pub_address = keyring_births[next_birth]["address"]
-                    except Exception:
+                        return keyring_births[next_birth]["address"]
+                    except Exception:  # pylint: disable=broad-exception-caught
                         pass
                 else:
-                    pub_address = item["address"]
-                break
-        return pub_address
+                    return item["address"]
+        return None

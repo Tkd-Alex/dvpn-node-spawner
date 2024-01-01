@@ -1,3 +1,4 @@
+# pylint: disable=invalid-name
 import os
 import platform
 import stat

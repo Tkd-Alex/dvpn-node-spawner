@@ -1,3 +1,4 @@
+# pylint: disable=invalid-name
 import copy
 
 
@@ -216,7 +217,7 @@ class Config:
 
         if node_config["node"]["type"]["value"] == "v2ray":
             if node_config["handshake"]["enable"] is True:
-                return f"{group}.{key} cannot be True"
+                return f"{group}.{key} cannot be True"  # pylint: disable=undefined-loop-variable
 
         return True
 

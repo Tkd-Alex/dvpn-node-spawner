@@ -124,11 +124,11 @@ def parse_settings() -> dict:
 
 def update_settings(username: str, password: str, authentication: bool = False):
     settings_fpath = os.path.join(os.getcwd(), "settings.json")
-    settings = (
-        json.load(open(settings_fpath, "r", encoding="utf-8"))
-        if os.path.isfile(settings_fpath)
-        else {}
-    )
+    if os.path.isfile(settings_fpath):
+        with open(settings_fpath, "r", encoding="utf-8") as f:
+            settings = json.load(f)
+    else:
+        settings = {}
 
     settings["username"] = username
     settings["password"] = sha256(password.encode("utf-8")).hexdigest()
@@ -245,3 +245,14 @@ def get_node_folder(mounts: list) -> str:
         if mount["Type"] == "bind" and mount["Source"] != "/lib/modules":
             return mount["Source"]
     return None
+
+
+def dvpn_node_images(images):
+    docker_images = []
+    for image in images:
+        docker_images += image["RepoTags"]
+    return [
+        img
+        for img in docker_images
+        if re.search(r"(dvpn-node:latest|dvpn-node)$", img) is not None
+    ]
