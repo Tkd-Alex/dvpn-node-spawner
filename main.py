@@ -110,7 +110,7 @@ class Servers(db.Model):
 
 @app.route("/", defaults={"path": ""})
 @app.route("/<path:path>")
-def catch_all(_):
+def catch_all(path):
     return redirect("/servers", code=302)
 
 
