@@ -173,6 +173,9 @@ def aggregate_node_stats(statistics) -> dict:
     }
     if statistics.get("success", False) is True:
         results = statistics.get("result", [])
+        if results is None:
+            results = []
+
         for result in results:
             # bandwidth
             for kind in ["download", "upload"]:
