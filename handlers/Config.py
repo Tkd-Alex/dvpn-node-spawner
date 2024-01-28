@@ -107,7 +107,7 @@ class Config:
                         "770ibc/A8C2D23A1E6F95DA4E48BA349667E322BD7A6C996D8A4AAE8BA72E190F3D1477",
                         "1871892ibc/B1C0DDB14F25279A2026BC8794E12B259F8BDA546A3C5132CCAEE4431CE36783",
                         "18897ibc/ED07A3391A112B175915CD8FAF43A2DA8E4790EDE12566649D0C2F97716B8518",
-                        "13557200udvpn",
+                        "4160000udvpn",
                     ]
                 ),
                 "description": "Prices for one hour",
