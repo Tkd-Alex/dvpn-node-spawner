@@ -25,6 +25,33 @@ pip install -r requirements.txt
 5. Create a dashboard settings
 6. Navigate to http://127.0.0.1:3845/servers (default one, or your custom `listen_on` and `listen_port` values) and enjoy the dashboard 🥳
 
+### Systemd service
+1. Create a system unit file `sudo nano /etc/systemd/system/dvpn-node-spawner.service`
+2. Paste the following text
+```conf
+[Unit]
+Description=dvpn-node-spawner
+After=network-online.target
+
+[Service]
+User=<your_user> # modify this field with your user
+TimeoutStartSec=2
+WorkingDirectory=/path/of/dvpn-node-spawner
+ExecStart=python main.py
+Restart=always
+RestartSec=2
+KillSignal=SIGTERM
+
+[Install]
+WantedBy=multi-user.target
+```
+
+> If you use a virtualenv replace `ExecStart=python main.py` with `ExecStart=/path/of/venv/bin/python main.py`
+
+3. Reload the systemd `sudo systemctl daemon-reload`
+4. Enable auto start `sudo systemctl enable dvpn-node-spawner`
+5. Enable auto start `sudo systemctl start dvpn-node-spawner`
+
 #### Docker
 1. Clone the repository
 2. Build the image
